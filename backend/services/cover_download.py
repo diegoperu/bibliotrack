@@ -1,10 +1,13 @@
+import logging
 import httpx
 from pathlib import Path
 from typing import Optional
 
+logger = logging.getLogger("bibliotrack.covers")
+
 OPENLIBRARY_COVER = "https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg"
 TIMEOUT = 15.0
-MIN_SIZE = 1000  # bytes — anything smaller is a placeholder/error image
+MIN_SIZE = 1000  # bytes — placeholder/error images are smaller
 
 
 async def download_cover(isbn: str, covers_dir: Path, fallback_url: Optional[str] = None) -> Optional[str]:
@@ -16,14 +19,23 @@ async def download_cover(isbn: str, covers_dir: Path, fallback_url: Optional[str
     if fallback_url and fallback_url not in urls:
         urls.append(fallback_url)
 
+    logger.info("cover download isbn=%s dest=%s urls=%s", isbn, dest, urls)
+
     async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True) as client:
         for url in urls:
             try:
                 resp = await client.get(url)
-                if resp.status_code == 200 and len(resp.content) > MIN_SIZE:
+                size = len(resp.content)
+                logger.info("cover url=%s status=%s size=%d", url, resp.status_code, size)
+                if resp.status_code == 200 and size > MIN_SIZE:
                     dest.write_bytes(resp.content)
+                    logger.info("cover saved to %s", dest)
                     return f"covers/{isbn}.jpg"
-            except Exception:
+                else:
+                    logger.warning("cover skip: status=%s size=%d (min=%d)", resp.status_code, size, MIN_SIZE)
+            except Exception as exc:
+                logger.warning("cover error url=%s: %s", url, exc)
                 continue
 
+    logger.warning("cover download failed isbn=%s — no valid image found", isbn)
     return None
