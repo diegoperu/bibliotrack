@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    host: true,   // bind 0.0.0.0 — accessibile da Android/altri dispositivi in LAN
     proxy: {
       '/auth':   { target: 'http://localhost:8000', changeOrigin: true },
       '/books':  { target: 'http://localhost:8000', changeOrigin: true },

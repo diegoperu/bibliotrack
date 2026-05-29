@@ -251,9 +251,18 @@ export default function AddBookModal({ onClose, onSaved }) {
       setOptions({ ...EMPTY_OPTIONS, genre: data.genre || '' })
       setStep('preview')
     } catch (e) {
-      const msg = e.response?.data?.detail || 'ISBN non trovato'
+      let msg
+      if (!e.response) {
+        msg = 'Impossibile raggiungere il server.\nVerifica che il backend sia avviato su localhost:8000.'
+      } else if (e.response.status === 404) {
+        msg = 'ISBN non trovato nelle banche dati (Open Library, Google Books).\nProva a inserire manualmente.'
+      } else if (e.response.status === 400) {
+        msg = e.response.data?.detail || 'Formato ISBN non valido'
+      } else {
+        msg = e.response.data?.detail || `Errore server (${e.response.status})`
+      }
       setLookupError(msg)
-      setStep(fromStep) // go back to where we came from
+      setStep(fromStep)
     }
   }
 
