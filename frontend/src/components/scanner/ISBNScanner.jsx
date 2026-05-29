@@ -2,21 +2,31 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 
 const IS_NATIVE = typeof window !== 'undefined' && 'BarcodeDetector' in window
 
-export default function ISBNScanner({ onDetect }) {
-  const videoRef    = useRef(null)
-  const containerRef = useRef(null)
-  const streamRef   = useRef(null)
-  const rafRef      = useRef(null)
-  const quaggaRef   = useRef(null)
-  const detectorRef = useRef(null)
+function isSecureContext() {
+  return (
+    window.isSecureContext ||
+    location.protocol === 'https:' ||
+    location.hostname === 'localhost' ||
+    location.hostname === '127.0.0.1'
+  )
+}
 
-  const [status, setStatus] = useState('idle')
-  // 'idle' | 'requesting' | 'active' | 'denied' | 'error' | 'found'
+export default function ISBNScanner({ onDetect }) {
+  const videoRef     = useRef(null)
+  const containerRef = useRef(null)
+  const streamRef    = useRef(null)
+  const rafRef       = useRef(null)
+  const quaggaRef    = useRef(null)
+  const detectorRef  = useRef(null)
+
+  const [status, setStatus]     = useState('idle')
+  const [errorMsg, setErrorMsg] = useState('')
+  // status: 'idle' | 'requesting' | 'active' | 'denied' | 'error' | 'found'
 
   const cleanup = useCallback(() => {
-    if (rafRef.current)   { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-    if (streamRef.current){ streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null }
-    if (quaggaRef.current){ try { quaggaRef.current.stop() } catch {} quaggaRef.current = null }
+    if (rafRef.current)    { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null }
+    if (quaggaRef.current) { try { quaggaRef.current.stop() } catch {} quaggaRef.current = null }
   }, [])
 
   useEffect(() => () => cleanup(), [cleanup])
@@ -27,7 +37,7 @@ export default function ISBNScanner({ onDetect }) {
     setTimeout(() => onDetect(rawIsbn.replace(/[-\s]/g, '')), 350)
   }, [cleanup, onDetect])
 
-  /* ── BarcodeDetector loop ── */
+  /* ── BarcodeDetector loop ─────────────────────────────────────── */
   const startNativeLoop = useCallback(() => {
     if (!detectorRef.current) {
       detectorRef.current = new window.BarcodeDetector({
@@ -40,24 +50,25 @@ export default function ISBNScanner({ onDetect }) {
       try {
         const results = await detectorRef.current.detect(video)
         if (results.length > 0) { handleFound(results[0].rawValue); return }
-      } catch { /* ignore frame error */ }
+      } catch { /* single frame error — ignore */ }
       rafRef.current = requestAnimationFrame(scan)
     }
     scan()
   }, [handleFound])
 
-  /* ── QuaggaJS (iOS fallback) ── */
+  /* ── QuaggaJS (Firefox + iOS fallback) ───────────────────────── */
   const startQuagga = useCallback(async () => {
     try {
       const { default: Quagga } = await import('@ericblade/quagga2')
       quaggaRef.current = Quagga
+
       await new Promise((resolve, reject) => {
         Quagga.init(
           {
             inputStream: {
               name: 'Live',
               type: 'LiveStream',
-              target: containerRef.current,
+              target: containerRef.current, // NOTE: must be visible (not display:none) — see JSX
               constraints: { facingMode: 'environment' },
             },
             locator: { patchSize: 'medium', halfSample: true },
@@ -67,8 +78,13 @@ export default function ISBNScanner({ onDetect }) {
           },
           (err) => {
             if (err) {
-              const msg = err?.toString() ?? ''
-              setStatus(msg.includes('ermission') || msg.includes('llowed') ? 'denied' : 'error')
+              const msg = (err?.message ?? err?.toString() ?? '').toLowerCase()
+              if (msg.includes('permission') || msg.includes('denied') || msg.includes('allowed') || msg.includes('notallowed')) {
+                setStatus('denied')
+              } else {
+                setErrorMsg('Errore avvio scanner: ' + (err?.message ?? String(err)))
+                setStatus('error')
+              }
               reject(err)
             } else {
               setStatus('active')
@@ -77,19 +93,42 @@ export default function ISBNScanner({ onDetect }) {
           }
         )
       })
+
       Quagga.start()
       Quagga.onDetected((result) => {
         Quagga.stop()
         handleFound(result.codeResult.code)
       })
-    } catch {
-      /* already handled in init callback */
+    } catch (e) {
+      // Outer catch: import failure or unexpected error not caught in init callback
+      setErrorMsg('Impossibile avviare Quagga: ' + (e?.message ?? String(e)))
+      setStatus((prev) => (prev === 'requesting' || prev === 'active') ? 'error' : prev)
     }
   }, [handleFound])
 
-  /* ── Start ── */
+  /* ── Start ────────────────────────────────────────────────────── */
   const startScanner = useCallback(async () => {
+    setErrorMsg('')
+
+    // 1. Check HTTPS — getUserMedia requires secure context (HTTPS or localhost)
+    if (!isSecureContext()) {
+      setErrorMsg(
+        'La fotocamera richiede HTTPS.\n' +
+        'Accedi tramite https:// oppure usa localhost per il test locale.'
+      )
+      setStatus('error')
+      return
+    }
+
+    // 2. Check browser support
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setErrorMsg('Il browser non supporta getUserMedia. Usa Chrome, Firefox o Safari recenti.')
+      setStatus('error')
+      return
+    }
+
     setStatus('requesting')
+
     if (IS_NATIVE) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -103,9 +142,15 @@ export default function ISBNScanner({ onDetect }) {
         setStatus('active')
         startNativeLoop()
       } catch (err) {
-        setStatus(err.name === 'NotAllowedError' ? 'denied' : 'error')
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setStatus('denied')
+        } else {
+          setErrorMsg(err.message || 'Errore accesso fotocamera')
+          setStatus('error')
+        }
       }
     } else {
+      // QuaggaJS — container must be in DOM before init (visibility:hidden, not display:none)
       startQuagga()
     }
   }, [startNativeLoop, startQuagga])
@@ -113,9 +158,10 @@ export default function ISBNScanner({ onDetect }) {
   const stopScanner = useCallback(() => {
     cleanup()
     setStatus('idle')
+    setErrorMsg('')
   }, [cleanup])
 
-  /* ── UI ── */
+  /* ── UI ───────────────────────────────────────────────────────── */
   const isActive  = status === 'active'
   const isFound   = status === 'found'
   const borderClr = isFound ? 'var(--success)' : isActive ? 'var(--accent)' : 'var(--border)'
@@ -123,7 +169,6 @@ export default function ISBNScanner({ onDetect }) {
   return (
     <div className="space-y-3">
       <div
-        ref={IS_NATIVE ? null : undefined}
         className="relative rounded-lg overflow-hidden"
         style={{
           aspectRatio: '4/3',
@@ -133,23 +178,29 @@ export default function ISBNScanner({ onDetect }) {
           transition: 'border-color 0.2s ease',
         }}
       >
-        {/* BarcodeDetector video */}
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-          playsInline
-          muted
-          style={{ display: isActive && IS_NATIVE ? 'block' : 'none' }}
-        />
+        {/* BarcodeDetector: native video element */}
+        {IS_NATIVE && (
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+            playsInline
+            muted
+            style={{ display: isActive ? 'block' : 'none' }}
+          />
+        )}
 
-        {/* QuaggaJS container (creates its own video+canvas) */}
-        <div
-          ref={containerRef}
-          className="w-full h-full"
-          style={{ display: isActive && !IS_NATIVE ? 'block' : 'none' }}
-        />
+        {/* QuaggaJS container — MUST use visibility:hidden (not display:none) so the
+            element has layout dimensions before Quagga.init() is called. display:none
+            gives 0×0 dimensions and Quagga fails silently. */}
+        {!IS_NATIVE && (
+          <div
+            ref={containerRef}
+            className="absolute inset-0 w-full h-full"
+            style={{ visibility: (status === 'requesting' || isActive) ? 'visible' : 'hidden' }}
+          />
+        )}
 
-        {/* Viewfinder overlay */}
+        {/* Viewfinder */}
         {isActive && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div
@@ -157,7 +208,7 @@ export default function ISBNScanner({ onDetect }) {
               style={{
                 width: '200px',
                 height: '110px',
-                border: `2px solid rgba(255,255,255,0.7)`,
+                border: '2px solid rgba(255,255,255,0.7)',
                 boxShadow: '0 0 0 9999px rgba(0,0,0,0.3)',
               }}
             />
@@ -181,13 +232,15 @@ export default function ISBNScanner({ onDetect }) {
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Avvia lo scanner</p>
           </div>
         )}
+
         {status === 'requesting' && (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 10 }}>
             <p className="text-sm animate-pulse" style={{ color: 'var(--text-muted)' }}>
               Accesso fotocamera…
             </p>
           </div>
         )}
+
         {status === 'denied' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
             <span className="text-3xl">🚫</span>
@@ -195,26 +248,36 @@ export default function ISBNScanner({ onDetect }) {
               Accesso fotocamera negato
             </p>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Abilita nelle impostazioni del browser
+              Abilita nelle impostazioni del browser, poi riprova
             </p>
           </div>
         )}
+
         {status === 'error' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
             <span className="text-3xl">⚠️</span>
-            <p className="text-sm" style={{ color: 'var(--danger)' }}>Errore fotocamera</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--danger)' }}>
+              Fotocamera non disponibile
+            </p>
+            {errorMsg && (
+              <p className="text-xs whitespace-pre-line" style={{ color: 'var(--text-muted)' }}>
+                {errorMsg}
+              </p>
+            )}
           </div>
         )}
       </div>
 
+      {/* Controls */}
       <div className="flex gap-2">
-        {(status === 'idle' || status === 'denied' || status === 'error') && (
-          <button
-            className="btn-primary flex-1"
-            onClick={startScanner}
-            disabled={status === 'denied'}
-          >
+        {(status === 'idle' || status === 'error') && (
+          <button className="btn-primary flex-1" onClick={startScanner}>
             📷 Avvia scanner
+          </button>
+        )}
+        {status === 'denied' && (
+          <button className="btn-secondary flex-1" onClick={startScanner}>
+            🔄 Riprova
           </button>
         )}
         {isActive && (
@@ -226,7 +289,7 @@ export default function ISBNScanner({ onDetect }) {
 
       {!IS_NATIVE && status === 'idle' && (
         <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
-          Modalità compatibilità iOS attiva
+          Browser senza BarcodeDetector — modalità compatibilità (QuaggaJS)
         </p>
       )}
     </div>
