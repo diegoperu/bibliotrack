@@ -253,7 +253,7 @@ export default function AddBookModal({ onClose, onSaved }) {
     } catch (e) {
       let msg
       if (!e.response) {
-        msg = 'Impossibile raggiungere il server.\nVerifica che il backend sia avviato su localhost:8000.'
+        msg = 'Impossibile raggiungere il server.\nVerifica che il backend sia raggiungibile.'
       } else if (e.response.status === 404) {
         msg = 'ISBN non trovato nelle banche dati (Open Library, Google Books).\nProva a inserire manualmente.'
       } else if (e.response.status === 400) {
