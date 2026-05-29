@@ -157,6 +157,121 @@ sudo certbot --nginx -d tuodominio.it
 
 ---
 
+## Deploy Docker / Unraid
+
+BiblioTrack viene distribuito come **singolo container** (nginx + uvicorn + supervisor).  
+Non richiede docker-compose su Unraid.
+
+### Architettura container
+
+```
+Container BiblioTrack  :8080
+├── nginx              ← frontend React + reverse proxy /api/
+├── uvicorn            ← FastAPI backend (127.0.0.1:8000, interno)
+└── /data  (volume)
+    ├── db/bibliotrack.db
+    └── covers/
+```
+
+### Opzione A — Build locale su Unraid (consigliata)
+
+```bash
+# 1. Clona il repo su Unraid (SSH o Unraid Terminal)
+git clone https://github.com/diegoperu/bibliotrack.git \
+    /mnt/user/appdata/bibliotrack-build
+cd /mnt/user/appdata/bibliotrack-build
+
+# 2. Build immagine (5-10 min al primo avvio)
+docker build -t bibliotrack:latest .
+
+# 3. Crea directory dati
+mkdir -p /mnt/user/appdata/bibliotrack/{db,covers}
+```
+
+In **Unraid UI → Docker → Add Container → Advanced View**:
+
+| Campo | Valore |
+|---|---|
+| Name | `BiblioTrack` |
+| Repository | `bibliotrack:latest` |
+| Network | `bridge` |
+| Port (host→container) | `8080:8080/tcp` |
+| Path (host→container) | `/mnt/user/appdata/bibliotrack` → `/data` |
+
+**Variabili d'ambiente obbligatorie:**
+
+| Variabile | Valore |
+|---|---|
+| `SECRET_KEY` | output di `openssl rand -hex 32` |
+| `ADMIN_USERNAME` | `admin` (o nome a scelta) |
+| `ADMIN_EMAIL` | la tua email |
+| `ADMIN_PASSWORD` | password sicura (min 8 caratteri) |
+
+Clicca **Apply** → attendi 20 secondi → apri `http://IP-UNRAID:8080`.
+
+> `ADMIN_*` sono usate **solo al primo avvio** (DB vuoto) per creare l'account admin.  
+> Dopo il primo avvio puoi rimuoverle per sicurezza.
+
+### Opzione B — docker-compose (test locale / server Linux)
+
+```bash
+# Copia e configura
+cp backend/.env.example .env
+# Edita .env: imposta SECRET_KEY, ADMIN_PASSWORD
+
+# Avvia
+SECRET_KEY=$(openssl rand -hex 32) ADMIN_PASSWORD=changeme docker-compose up -d
+
+# Verifica
+curl http://localhost:8080/api/health
+```
+
+### Verifica installazione
+
+```bash
+# Health check
+curl http://IP-UNRAID:8080/api/health
+# Risposta: {"status": "ok", "version": "1.0.0"}
+```
+
+### Aggiornamento container su Unraid
+
+```bash
+cd /mnt/user/appdata/bibliotrack-build
+git pull
+docker build -t bibliotrack:latest .
+# Poi in Unraid UI: Docker → BiblioTrack → Force Update
+```
+
+### Troubleshooting
+
+```bash
+# Log del container
+docker logs BiblioTrack
+
+# Verifica uvicorn interno
+docker exec BiblioTrack curl -s http://127.0.0.1:8000/health
+
+# Fix permessi /data
+chmod -R 755 /mnt/user/appdata/bibliotrack
+
+# Reset password admin manuale
+docker exec -it BiblioTrack sh -c "
+cd /app/backend && python3 -c \"
+from database import SessionLocal
+from services.auth_service import hash_password
+from models.user import User
+db = SessionLocal()
+u = db.query(User).filter(User.username=='admin').first()
+u.hashed_password = hash_password('NUOVA_PASSWORD')
+db.commit(); print('OK')
+\""
+```
+
+> Guida completa con approccio via registry (ghcr.io), NPM reverse proxy, backup Unraid: **[DOCKER-UNRAID.md](DOCKER-UNRAID.md)**
+
+---
+
 ## Aggiornamento
 
 ```bash
