@@ -1,0 +1,99 @@
+/* ── Light ─────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-primary:     #ffffff;
+  --bg-secondary:   #f0f4f8;
+  --bg-tertiary:    #e2e8f0;
+  --accent:         #2563eb;
+  --accent-hover:   #1d4ed8;
+  --text-primary:   #1e293b;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+  --border:         #cbd5e1;
+  --sidebar-bg:     #1e293b;
+  --sidebar-text:   #94a3b8;
+  --sidebar-hover:  #334155;
+  --sidebar-active: #60a5fa;
+  --card-bg:        #ffffff;
+  --card-border:    #e2e8f0;
+  --input-bg:       #ffffff;
+  --input-border:   #cbd5e1;
+  --input-focus:    #2563eb;
+  --danger:         #ef4444;
+  --success:        #22c55e;
+  --warning:        #f59e0b;
+}
+
+/* ── Dark (Catppuccin-inspired pastels) ────────────── */
+[data-theme="dark"] {
+  --bg-primary:     #1e1e2e;
+  --bg-secondary:   #181825;
+  --bg-tertiary:    #11111b;
+  --accent:         #89b4fa;
+  --accent-hover:   #74c7ec;
+  --text-primary:   #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-muted:     #6c7086;
+  --border:         #313244;
+  --sidebar-bg:     #181825;
+  --sidebar-text:   #a6adc8;
+  --sidebar-hover:  #313244;
+  --sidebar-active: #89b4fa;
+  --card-bg:        #1e1e2e;
+  --card-border:    #313244;
+  --input-bg:       #11111b;
+  --input-border:   #313244;
+  --input-focus:    #89b4fa;
+  --danger:         #f38ba8;
+  --success:        #a6e3a1;
+  --warning:        #fab387;
+}
+
+/* ── Catppuccin Latte (light) ──────────────────────── */
+[data-theme="catppuccin-light"] {
+  --bg-primary:     #eff1f5;
+  --bg-secondary:   #e6e9ef;
+  --bg-tertiary:    #dce0e8;
+  --accent:         #1e66f5;
+  --accent-hover:   #04a5e5;
+  --text-primary:   #4c4f69;
+  --text-secondary: #5c5f77;
+  --text-muted:     #9ca0b0;
+  --border:         #bcc0cc;
+  --sidebar-bg:     #dce0e8;
+  --sidebar-text:   #6c6f85;
+  --sidebar-hover:  #ccd0da;
+  --sidebar-active: #1e66f5;
+  --card-bg:        #eff1f5;
+  --card-border:    #ccd0da;
+  --input-bg:       #eff1f5;
+  --input-border:   #bcc0cc;
+  --input-focus:    #1e66f5;
+  --danger:         #d20f39;
+  --success:        #40a02b;
+  --warning:        #df8e1d;
+}
+
+/* ── Catppuccin Mocha (dark) ───────────────────────── */
+[data-theme="catppuccin-dark"] {
+  --bg-primary:     #1e1e2e;
+  --bg-secondary:   #181825;
+  --bg-tertiary:    #11111b;
+  --accent:         #cba6f7;
+  --accent-hover:   #b4befe;
+  --text-primary:   #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-muted:     #6c7086;
+  --border:         #313244;
+  --sidebar-bg:     #181825;
+  --sidebar-text:   #a6adc8;
+  --sidebar-hover:  #313244;
+  --sidebar-active: #cba6f7;
+  --card-bg:        #1e1e2e;
+  --card-border:    #313244;
+  --input-bg:       #11111b;
+  --input-border:   #313244;
+  --input-focus:    #cba6f7;
+  --danger:         #f38ba8;
+  --success:        #a6e3a1;
+  --warning:        #fab387;
+}

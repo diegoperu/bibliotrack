@@ -1,0 +1,33 @@
+[Unit]
+Description=BiblioTrack — catalogatore libri personale
+Documentation=https://github.com/tuoutente/bibliotrack
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=bibliotrack
+Group=bibliotrack
+WorkingDirectory=/opt/bibliotrack/backend
+Environment="PATH=/opt/bibliotrack/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/opt/bibliotrack/backend/.env
+ExecStart=/opt/bibliotrack/venv/bin/uvicorn main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 1 \
+    --log-level info
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bibliotrack
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/bibliotrack/backend
+
+[Install]
+WantedBy=multi-user.target

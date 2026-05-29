@@ -1,0 +1,140 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>BiblioTrack</Name>
+  <Repository>ghcr.io/tuoutente/bibliotrack:latest</Repository>
+  <Registry>https://ghcr.io</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/tuoutente/bibliotrack/issues</Support>
+  <Project>https://github.com/tuoutente/bibliotrack</Project>
+  <Overview>
+    BiblioTrack — catalogo libri personale con scansione ISBN da fotocamera.
+    Scansiona il codice a barre, recupera automaticamente copertina e metadati.
+    Mobile-first, 4 temi, pannello admin.
+  </Overview>
+  <Category>MediaApp:Books</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <Icon>https://raw.githubusercontent.com/tuoutente/bibliotrack/main/docker/icon.png</Icon>
+  <Description>
+    Personal book library with ISBN barcode scanner.
+    Auto-fetches metadata and cover art via Open Library API.
+    Features: reading status tracking, ratings, notes, admin panel, 4 themes.
+  </Description>
+
+  <Networking>
+    <Mode>bridge</Mode>
+    <Publish>
+      <Port>
+        <HostPort>8080</HostPort>
+        <ContainerPort>8080</ContainerPort>
+        <Protocol>tcp</Protocol>
+      </Port>
+    </Publish>
+  </Networking>
+
+  <Data>
+    <Volume>
+      <HostDir>/mnt/user/appdata/bibliotrack</HostDir>
+      <ContainerDir>/data</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+  </Data>
+
+  <Environment>
+    <Variable>
+      <Value></Value>
+      <Name>SECRET_KEY</Name>
+      <Mode></Mode>
+      <Description>OBBLIGATORIO — genera con: openssl rand -hex 32</Description>
+    </Variable>
+    <Variable>
+      <Value>admin</Value>
+      <Name>ADMIN_USERNAME</Name>
+      <Mode></Mode>
+      <Description>Username admin al primo avvio</Description>
+    </Variable>
+    <Variable>
+      <Value>admin@bibliotrack.local</Value>
+      <Name>ADMIN_EMAIL</Name>
+      <Mode></Mode>
+      <Description>Email admin al primo avvio</Description>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>ADMIN_PASSWORD</Name>
+      <Mode></Mode>
+      <Description>Password admin al primo avvio (cambia dopo il login)</Description>
+    </Variable>
+    <Variable>
+      <Value>60</Value>
+      <Name>ACCESS_TOKEN_EXPIRE_MINUTES</Name>
+      <Mode></Mode>
+      <Description>Durata token di accesso in minuti</Description>
+    </Variable>
+    <Variable>
+      <Value>30</Value>
+      <Name>REFRESH_TOKEN_EXPIRE_DAYS</Name>
+      <Mode></Mode>
+      <Description>Durata refresh token in giorni</Description>
+    </Variable>
+  </Environment>
+
+  <Labels/>
+  <Config
+    Name="WebUI Port"
+    Target="8080"
+    Default="8080"
+    Mode="tcp"
+    Description="Porta web app"
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false">8080</Config>
+  <Config
+    Name="Dati app"
+    Target="/data"
+    Default="/mnt/user/appdata/bibliotrack"
+    Mode="rw"
+    Description="Database SQLite + copertine scaricate"
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/bibliotrack</Config>
+  <Config
+    Name="SECRET_KEY"
+    Target="SECRET_KEY"
+    Default=""
+    Description="Chiave segreta JWT. Genera con: openssl rand -hex 32"
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="true"></Config>
+  <Config
+    Name="ADMIN_USERNAME"
+    Target="ADMIN_USERNAME"
+    Default="admin"
+    Description="Username admin (solo primo avvio)"
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">admin</Config>
+  <Config
+    Name="ADMIN_PASSWORD"
+    Target="ADMIN_PASSWORD"
+    Default=""
+    Description="Password admin (solo primo avvio)"
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="true"></Config>
+  <Config
+    Name="ADMIN_EMAIL"
+    Target="ADMIN_EMAIL"
+    Default="admin@bibliotrack.local"
+    Description="Email admin (solo primo avvio)"
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">admin@bibliotrack.local</Config>
+</Container>
