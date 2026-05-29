@@ -44,6 +44,15 @@ GOOGLE_DATA = {
     }]
 }
 
+SBN_DATA = {
+    "ISBN-13":  "9788845292682",
+    "Title":    "Il nome della rosa",
+    "Authors":  ["Eco, Umberto"],
+    "Publisher": "Bompiani",
+    "Year":     "1980",
+    "Language": "it",
+}
+
 
 class _MockResp:
     def __init__(self, json_data=None, status_code=200, content=b"x" * 2000):
@@ -76,14 +85,76 @@ class _MockClient:
         return _MockResp(status_code=404)
 
 
-# --- unit tests for isbn_lookup ---
+# --- SBN tests ---
+
+async def test_lookup_sbn_primary():
+    """SBN returns data → used as primary source for Italian ISBN."""
+    from services.isbn_lookup import lookup_isbn
+
+    with patch("services.isbn_lookup._SBN_AVAILABLE", True):
+        with patch("services.isbn_lookup.isbnlib_meta", return_value=SBN_DATA):
+            result = await lookup_isbn("9788845292682")
+
+    assert result is not None
+    assert result["title"] == "Il nome della rosa"
+    assert result["author"] == "Eco, Umberto"
+    assert result["language"] == "ita"
+    assert result["year"] == 1980
+    assert result["source"] == "sbn"
+    assert result["isbn"] == "9788845292682"
+
+
+async def test_lookup_sbn_fallback_to_openlibrary():
+    """SBN raises → falls through to Open Library."""
+    from services.isbn_lookup import lookup_isbn
+
+    mock = _MockClient({"openlibrary.org/api/books": _MockResp(OPEN_LIBRARY_DATA)})
+    with patch("services.isbn_lookup._SBN_AVAILABLE", True):
+        with patch("services.isbn_lookup.isbnlib_meta", side_effect=Exception("SBN unavailable")):
+            with patch("httpx.AsyncClient", return_value=mock):
+                result = await lookup_isbn("9788845268038")
+
+    assert result["source"] == "openlibrary"
+    assert result["title"] == "Il nome della rosa"
+
+
+async def test_lookup_sbn_empty_response_falls_through():
+    """SBN returns empty dict → falls through to Open Library."""
+    from services.isbn_lookup import lookup_isbn
+
+    mock = _MockClient({"openlibrary.org/api/books": _MockResp(OPEN_LIBRARY_DATA)})
+    with patch("services.isbn_lookup._SBN_AVAILABLE", True):
+        with patch("services.isbn_lookup.isbnlib_meta", return_value={}):
+            with patch("httpx.AsyncClient", return_value=mock):
+                result = await lookup_isbn("9788845268038")
+
+    assert result["source"] == "openlibrary"
+
+
+async def test_lookup_sbn_skipped_for_non_italian():
+    """SBN not tried for non-Italian ISBN."""
+    from services.isbn_lookup import lookup_isbn
+
+    mock = _MockClient({"openlibrary.org/api/books": _MockResp({}),"openlibrary.org/search.json": _MockResp(SEARCH_DATA)})
+    sbn_mock = MagicMock()
+    with patch("services.isbn_lookup._SBN_AVAILABLE", True):
+        with patch("services.isbn_lookup.isbnlib_meta", sbn_mock):
+            with patch("httpx.AsyncClient", return_value=mock):
+                result = await lookup_isbn("9780441172719")  # non-Italian
+
+    sbn_mock.assert_not_called()
+    assert result["source"] == "openlibrary_search"
+
+
+# --- existing lookup tests (Italian ISBNs need SBN mocked to fail) ---
 
 async def test_lookup_openlibrary_primary():
     from services.isbn_lookup import lookup_isbn
 
     mock = _MockClient({"openlibrary.org/api/books": _MockResp(OPEN_LIBRARY_DATA)})
-    with patch("httpx.AsyncClient", return_value=mock):
-        result = await lookup_isbn("9788845268038")
+    with patch("services.isbn_lookup.isbnlib_meta", side_effect=Exception("SBN mock")):
+        with patch("httpx.AsyncClient", return_value=mock):
+            result = await lookup_isbn("9788845268038")
 
     assert result["title"] == "Il nome della rosa"
     assert result["author"] == "Umberto Eco"
@@ -98,11 +169,11 @@ async def test_lookup_openlibrary_search_fallback():
     from services.isbn_lookup import lookup_isbn
 
     mock = _MockClient({
-        "openlibrary.org/api/books": _MockResp({}),  # empty → no hit
+        "openlibrary.org/api/books": _MockResp({}),
         "openlibrary.org/search.json": _MockResp(SEARCH_DATA),
     })
     with patch("httpx.AsyncClient", return_value=mock):
-        result = await lookup_isbn("9780441172719")
+        result = await lookup_isbn("9780441172719")  # non-Italian, no SBN mock needed
 
     assert result["title"] == "Dune"
     assert result["author"] == "Frank Herbert"
@@ -119,7 +190,7 @@ async def test_lookup_google_books_fallback():
         "googleapis.com": _MockResp(GOOGLE_DATA),
     })
     with patch("httpx.AsyncClient", return_value=mock):
-        result = await lookup_isbn("9780553293357")
+        result = await lookup_isbn("9780553293357")  # non-Italian
 
     assert result["title"] == "Foundation"
     assert result["author"] == "Isaac Asimov"
@@ -145,9 +216,9 @@ async def test_lookup_isbn_normalization():
     from services.isbn_lookup import lookup_isbn
 
     mock = _MockClient({"openlibrary.org/api/books": _MockResp(OPEN_LIBRARY_DATA)})
-    with patch("httpx.AsyncClient", return_value=mock):
-        # with hyphens → same result
-        result = await lookup_isbn("978-88-45-268038")
+    with patch("services.isbn_lookup.isbnlib_meta", side_effect=Exception("SBN mock")):
+        with patch("httpx.AsyncClient", return_value=mock):
+            result = await lookup_isbn("978-88-45-268038")
 
     assert result["isbn"] == "9788845268038"
 
@@ -160,18 +231,27 @@ def test_normalize_isbn():
 
 def test_is_valid_isbn():
     from services.isbn_lookup import is_valid_isbn
-    assert is_valid_isbn("9788845268038") is True   # ISBN-13
-    assert is_valid_isbn("0306406152") is True       # ISBN-10
+    assert is_valid_isbn("9788845268038") is True
+    assert is_valid_isbn("0306406152") is True
     assert is_valid_isbn("123") is False
     assert is_valid_isbn("abcdefghijklm") is False
 
 
-# --- cover download unit test ---
+def test_is_italian_isbn():
+    from services.isbn_lookup import _is_italian_isbn
+    assert _is_italian_isbn("9788845268038") is True   # 978-88
+    assert _is_italian_isbn("9791234567890") is True   # 979-12
+    assert _is_italian_isbn("8845268038") is True       # ISBN-10 88
+    assert _is_italian_isbn("9780441172719") is False  # English
+    assert _is_italian_isbn("9780553293357") is False  # English
+
+
+# --- cover download unit tests ---
 
 async def test_download_cover(tmp_path):
     from services.cover_download import download_cover
 
-    big_content = b"\xff\xd8\xff" + b"x" * 2000  # fake JPEG
+    big_content = b"\xff\xd8\xff" + b"x" * 2000
 
     mock = _MockClient({"covers.openlibrary.org": _MockResp(content=big_content, status_code=200)})
     with patch("httpx.AsyncClient", return_value=mock):
@@ -184,9 +264,8 @@ async def test_download_cover(tmp_path):
 async def test_download_cover_too_small_uses_fallback(tmp_path):
     from services.cover_download import download_cover
 
-    small = b"x" * 100  # below MIN_SIZE
-    big = b"x" * 2000
-
+    small = b"x" * 100
+    big   = b"x" * 2000
     call_count = 0
 
     class SequentialMock:
@@ -217,8 +296,9 @@ def auth_headers(client):
 
 def test_get_isbn_metadata_endpoint(client, auth_headers):
     mock = _MockClient({"openlibrary.org/api/books": _MockResp(OPEN_LIBRARY_DATA)})
-    with patch("httpx.AsyncClient", return_value=mock):
-        resp = client.get("/isbn/9788845268038")
+    with patch("services.isbn_lookup.isbnlib_meta", side_effect=Exception("SBN mock")):
+        with patch("httpx.AsyncClient", return_value=mock):
+            resp = client.get("/isbn/9788845268038")
     assert resp.status_code == 200
     data = resp.json()
     assert data["title"] == "Il nome della rosa"
@@ -242,11 +322,12 @@ def test_get_isbn_not_found(client):
 
 
 def test_import_isbn_endpoint(client, auth_headers):
-    ol_mock = _MockClient({"openlibrary.org/api/books": _MockResp(OPEN_LIBRARY_DATA)})
+    ol_mock    = _MockClient({"openlibrary.org/api/books": _MockResp(OPEN_LIBRARY_DATA)})
     cover_mock = _MockClient({"covers.openlibrary.org": _MockResp(content=b"x" * 2000)})
 
-    with patch("httpx.AsyncClient", side_effect=[ol_mock, cover_mock]):
-        resp = client.post("/isbn/9788845268038/import", headers=auth_headers)
+    with patch("services.isbn_lookup.isbnlib_meta", side_effect=Exception("SBN mock")):
+        with patch("httpx.AsyncClient", side_effect=[ol_mock, cover_mock]):
+            resp = client.post("/isbn/9788845268038/import", headers=auth_headers)
 
     assert resp.status_code == 201
     data = resp.json()
@@ -256,15 +337,16 @@ def test_import_isbn_endpoint(client, auth_headers):
 
 
 def test_import_isbn_with_options(client, auth_headers):
-    ol_mock = _MockClient({"openlibrary.org/api/books": _MockResp(OPEN_LIBRARY_DATA)})
+    ol_mock    = _MockClient({"openlibrary.org/api/books": _MockResp(OPEN_LIBRARY_DATA)})
     cover_mock = _MockClient({"covers.openlibrary.org": _MockResp(content=b"x" * 2000)})
 
-    with patch("httpx.AsyncClient", side_effect=[ol_mock, cover_mock]):
-        resp = client.post(
-            "/isbn/9788845268038/import",
-            json={"status": "read", "rating": 5, "notes": "Capolavoro"},
-            headers=auth_headers,
-        )
+    with patch("services.isbn_lookup.isbnlib_meta", side_effect=Exception("SBN mock")):
+        with patch("httpx.AsyncClient", side_effect=[ol_mock, cover_mock]):
+            resp = client.post(
+                "/isbn/9788845268038/import",
+                json={"status": "read", "rating": 5, "notes": "Capolavoro"},
+                headers=auth_headers,
+            )
 
     assert resp.status_code == 201
     data = resp.json()

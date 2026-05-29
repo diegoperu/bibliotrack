@@ -28,7 +28,7 @@
 | Auth | JWT (python-jose) + bcrypt (diretto, passlib rimosso) |
 | Frontend | React 18 + Vite + TailwindCSS 3 |
 | Camera/ISBN | BarcodeDetector API + QuaggaJS (fallback iOS) |
-| Metadata ISBN | Open Library API (primario) + Google Books API (fallback, no key) |
+| Metadata ISBN | OPAC SBN via isbnlib-sbn (primario IT) + Open Library API + Google Books API (fallback) |
 | Copertine | Open Library Covers API + scraping fallback |
 | Server | Nginx reverse proxy + systemd |
 | Python deps | `uv` (package manager consigliato) |
@@ -179,7 +179,7 @@ Tasks:
 - [x] Endpoint `POST /isbn/{code}/import` → crea libro nel DB + opzioni (status, rating, notes, genre)
 
 Note tecniche:
-- Cascade lookup: OpenLibrary /api/books → /search.json → Google Books
+- Cascade lookup: SBN (solo ISBN italiani 978-88/979-12) → OpenLibrary /api/books → /search.json → Google Books
 - ISBN normalizzato (rimuove trattini/spazi), validato (10 o 13 cifre)
 - Cover download: OpenLibrary cover → fallback URL; skip se < 1KB (placeholder)
 - Test: 34/34 passed (tutti mockati, nessuna chiamata HTTP reale)
@@ -484,7 +484,8 @@ owner_id: int (FK → User)
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
 - Refresh token: body JSON (non query param) — breaking change rispetto a versioni precedenti
-- Open Library preferita per copertura italiana (ISBN 978-88-* ben rappresentati)
+- SBN (isbnlib-sbn) aggiunto come fonte primaria per ISBN italiani (978-88-*, 979-12-*)
+- Open Library preferita per copertura italiana (ISBN 978-88-* ben rappresentati) — fallback dopo SBN
 - QuaggaJS necessario per iOS (no BarcodeDetector nativo su Safari < 17)
 - SQLite in WAL mode: `PRAGMA journal_mode=WAL` su ogni connessione
 - Deploy target finale: Docker su Unraid (vedi DOCKER-UNRAID.md + DOCKER-CLAUDECODE.md)
