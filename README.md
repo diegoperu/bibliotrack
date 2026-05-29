@@ -10,7 +10,7 @@
 
 # BiblioTrack 📚
 
-Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN da fotocamera, metadati automatici via Open Library.
+Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN da fotocamera, metadati automatici via OPAC SBN (primario per editori italiani) + Open Library + Google Books.
 
 > Ispirata a Calibre-web. Funziona su smartphone e desktop.
 
@@ -19,7 +19,7 @@ Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN d
 ## Funzionalità
 
 - 📷 **Scansione ISBN** da fotocamera (Chrome/Android nativo, iOS via QuaggaJS)
-- 🔍 **Lookup automatico** metadati + copertina via Open Library API (+ Google Books fallback)
+- 🔍 **Lookup automatico** metadati + copertina — OPAC SBN (editori italiani 978-88-\*/979-12-\*), Open Library, Google Books
 - ✍️ **Inserimento manuale** come alternativa
 - 📚 **Libreria personale** con filtri, raggruppamento e ordinamento
 - 👤 **Gestione utenti** (admin / user)
@@ -38,7 +38,7 @@ Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN d
 | Auth | JWT (python-jose) + bcrypt |
 | Frontend | React 18 + Vite + TailwindCSS 3 |
 | Camera | BarcodeDetector API + QuaggaJS (iOS) |
-| Metadata | Open Library API + Google Books (fallback) |
+| Metadata | OPAC SBN (IT) · Open Library · Google Books |
 | Server | Nginx + systemd |
 
 ---
@@ -243,11 +243,20 @@ docker build -t bibliotrack:latest .
 # Poi in Unraid UI: Docker → BiblioTrack → Force Update
 ```
 
+### Reverse proxy (NPM / Nginx Proxy Manager)
+
+Se BiblioTrack è dietro NPM o altro reverse proxy che termina SSL:
+
+1. **Scheme upstream**: imposta `http` (non `https`) — il container parla HTTP sulla porta 8080
+2. **Force SSL** e **Websockets Support**: attivati su NPM
+3. NPM deve passare `X-Forwarded-Proto: https` al container (attivo di default con Force SSL)
+
 ### Troubleshooting
 
 ```bash
-# Log del container
+# Log completi (nginx + uvicorn + applicazione Python)
 docker logs BiblioTrack
+docker logs BiblioTrack --follow    # real-time
 
 # Verifica uvicorn interno
 docker exec BiblioTrack curl -s http://127.0.0.1:8000/health
