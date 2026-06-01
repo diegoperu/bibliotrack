@@ -19,11 +19,13 @@ export default function Layout() {
 
       {/* Sidebar — fixed on mobile, relative on desktop */}
       <div
-        className="fixed inset-y-0 left-0 z-30 md:relative md:flex md:translate-x-0 transition-transform duration-200 ease-in-out"
+        className={`fixed inset-y-0 left-0 z-30 md:relative md:flex md:translate-x-0 transition-transform duration-200 ease-in-out ${
+          sidebarOpen ? 'pointer-events-auto' : 'pointer-events-none md:pointer-events-auto'
+        }`}
         style={{ transform: sidebarOpen ? 'translateX(0)' : undefined }}
       >
         <div
-          className={`h-full md:translate-x-0 transition-transform duration-200 ${
+          className={`h-full md:translate-x-0 transition-transform duration-200 pointer-events-auto ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
           }`}
         >

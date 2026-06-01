@@ -75,6 +75,16 @@ export default function Library() {
 
   return (
     <div className="space-y-4">
+      {/* FAB mobile — pulsante aggiungi libro visibile senza aprire la sidebar */}
+      <Link
+        to="/add-book"
+        className="md:hidden fixed bottom-6 right-6 z-10 w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-2xl"
+        style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+        aria-label="Aggiungi libro"
+      >
+        ＋
+      </Link>
+
       <SortGroupBar
         sortBy={sortBy}
         sortOrder={sortOrder}
