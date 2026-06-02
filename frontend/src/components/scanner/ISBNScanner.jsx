@@ -117,10 +117,21 @@ export default function ISBNScanner({ onDetect }) {
               name: 'Live',
               type: 'LiveStream',
               target: containerRef.current, // NOTE: must be visible (not display:none) — see JSX
-              constraints: { facingMode: { ideal: 'environment' } },
+              constraints: {
+                facingMode: { ideal: 'environment' },
+                width:  { ideal: 1280 },
+                height: { ideal: 720 },
+              },
             },
+            // Process ~5 frames/sec — same throttle rationale as BarcodeDetector path:
+            // scanning at 60fps floods the CPU and prevents the camera from settling focus.
+            frequency: 5,
             locator: { patchSize: 'medium', halfSample: true },
-            numOfWorkers: 0,
+            // Use workers when available for off-main-thread processing.
+            // numOfWorkers: 0 blocks the main thread on every frame and causes jank on mobile.
+            numOfWorkers: (typeof navigator !== 'undefined' && navigator.hardwareConcurrency)
+              ? Math.min(navigator.hardwareConcurrency, 2)
+              : 0,
             decoder: { readers: ['ean_reader', 'ean_8_reader'] },
             locate: true,
           },
@@ -143,6 +154,21 @@ export default function ISBNScanner({ onDetect }) {
       })
 
       Quagga.start()
+
+      // Apply continuous autofocus to Quagga's stream — same fix as BarcodeDetector path.
+      // Quagga manages its own getUserMedia call; get the track from the <video> it injects
+      // into containerRef so we can request continuous autofocus on the device camera.
+      try {
+        const videoEl = containerRef.current?.querySelector('video')
+        const track   = videoEl?.srcObject?.getVideoTracks?.()[0]
+        if (track) {
+          const caps = track.getCapabilities?.()
+          if (caps?.focusMode?.includes('continuous')) {
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] })
+          }
+        }
+      } catch { /* autofocus not supported on this device — continue */ }
+
       Quagga.onDetected((result) => {
         Quagga.stop()
         handleFound(result.codeResult.code)
