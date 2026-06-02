@@ -525,9 +525,30 @@ Note tecniche:
 
 ---
 
+### ✅ FIX — Scanner barcode Firefox/iOS (QuaggaJS)
+**Problema:** Stessi sintomi del fix BarcodeDetector — camera attiva ma nessuna detection, nessun autofocus.
+
+Root cause e fix:
+
+| Causa | Fix |
+|---|---|
+| Nessun autofocus continuo | Dopo `Quagga.start()`: trova `<video>` iniettato da Quagga in `containerRef` → `applyConstraints({ focusMode: continuous })` sul track |
+| Scan a framerate nativo (30-60fps) → CPU flood, no focus | `frequency: 5` nella config Quagga → ~5 frame/sec |
+| `numOfWorkers: 0` → main thread bloccato ad ogni frame | `Math.min(navigator.hardwareConcurrency, 2)` worker quando disponibili |
+
+Files modificati:
+`frontend/src/components/scanner/ISBNScanner.jsx` (solo path QuaggaJS; BarcodeDetector invariato)
+
+Note tecniche:
+- Autofocus applicato tramite DOM (`containerRef.querySelector('video')`) — non dipende da API interne Quagga
+- Aggiunti `width/height: { ideal: 1280/720 }` ai constraints Quagga per compatibilità camera Android
+- Build: 126 moduli, no errori
+
+---
+
 ## Sessione Corrente
 
-**Ultimo step completato:** Fix scanner barcode Android ✅
+**Ultimo step completato:** Fix scanner QuaggaJS (Firefox/iOS) ✅
 **Stato:** Progetto completo e pronto per il deploy
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
@@ -535,7 +556,8 @@ Note tecniche:
 - Cascade lookup ISBN (5 livelli): SBN (solo IT) → OpenLibrary /api/books → /search.json → Google Books → IBS.it Algolia
 - IBS.it usa Algolia (SPA React) — chiavi pubbliche `FBVFK8AIGY` / `460ca8aeaa21b30a35784e7125bfca37` index `prd_IBS`
 - Source IBS non esposto nell'UI — errore 404 cita solo "Open Library e Google Books"
-- Scanner Android: BarcodeDetector usa canvas off-screen + autofocus continuo + throttle 250ms
+- Scanner BarcodeDetector (Chrome/Android): canvas off-screen + autofocus continuo + throttle 250ms
+- Scanner QuaggaJS (Firefox/iOS): autofocus via DOM track + frequency:5 + numOfWorkers da hardwareConcurrency
 - QuaggaJS necessario per iOS (no BarcodeDetector nativo su Safari < 17)
 - SQLite in WAL mode: `PRAGMA journal_mode=WAL` su ogni connessione
 - Deploy target finale: Docker su Unraid (vedi DOCKER-UNRAID.md + DOCKER-CLAUDECODE.md)

@@ -37,7 +37,7 @@ Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN d
 | ORM | SQLAlchemy 2.x + SQLite (WAL) |
 | Auth | JWT (python-jose) + bcrypt |
 | Frontend | React 18 + Vite + TailwindCSS 3 |
-| Camera | BarcodeDetector API + QuaggaJS (iOS) |
+| Camera | BarcodeDetector API (Chrome/Android) + QuaggaJS (Firefox/iOS) |
 | Metadata | OPAC SBN (IT) · Open Library · Google Books · IBS.it (fallback IT) |
 | Server | Nginx + systemd |
 
@@ -448,6 +448,8 @@ Documentazione interattiva: `http://server/docs`
 | 8 | Docker + Unraid | ✅ |
 | — | Audit sicurezza | ✅ |
 | — | ISBN fallback IBS.it (Algolia) + logging cascade | ✅ |
+| — | Fix scanner barcode Android (BarcodeDetector) | ✅ |
+| — | Fix scanner barcode Firefox/iOS (QuaggaJS) | ✅ |
 
 ---
 
