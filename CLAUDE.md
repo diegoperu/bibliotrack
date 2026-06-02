@@ -502,11 +502,32 @@ Note tecniche:
 - IBS non è citato nell'UI — se trova il libro appare normalmente; se fallisce l'utente vede solo "Open Library / Google Books"
 - Filter Algolia: `productType:ITBOOK` per escludere ebook e accessori
 
+### ✅ FIX — Scanner barcode Android (BarcodeDetector)
+**Problema:** Camera si avviava ma non rilevava mai barcode; nessun autofocus al cambiamento distanza.
+
+Root cause e fix:
+
+| Causa | Fix |
+|---|---|
+| Nessun autofocus continuo | `track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] })` dopo stream acquisito |
+| `BarcodeDetector.detect(<video>)` inaffidabile su Android | Canvas off-screen: `drawImage(video)` → `detect(canvas)` (frame statico più affidabile) |
+| RAF a 60fps: detect() flood impedisce focus | Throttle 250ms + `scanActiveRef` per evitare detect() sovrapposti |
+| `facingMode: 'environment'` hard fallisce su alcuni device | Cambiato in `{ ideal: 'environment' }` |
+| `play()` chiamato prima di `loadedmetadata` | Attende evento `loadedmetadata` → videoWidth/videoHeight validi all'avvio loop |
+
+Files modificati:
+`frontend/src/components/scanner/ISBNScanner.jsx` (solo path BarcodeDetector; QuaggaJS invariato)
+
+Note tecniche:
+- Canvas ref aggiunto (`canvasRef`) — nascosto nell'UI, usato solo per snapshot
+- `scanActiveRef` previene chiamate detect() post-cleanup (race condition su unmount)
+- Build: 126 moduli, no errori
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** Step 9 — ISBN fallback IBS.it Algolia + logging cascade (40/40 test pass ✅)
+**Ultimo step completato:** Fix scanner barcode Android ✅
 **Stato:** Progetto completo e pronto per il deploy
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
@@ -514,6 +535,7 @@ Note tecniche:
 - Cascade lookup ISBN (5 livelli): SBN (solo IT) → OpenLibrary /api/books → /search.json → Google Books → IBS.it Algolia
 - IBS.it usa Algolia (SPA React) — chiavi pubbliche `FBVFK8AIGY` / `460ca8aeaa21b30a35784e7125bfca37` index `prd_IBS`
 - Source IBS non esposto nell'UI — errore 404 cita solo "Open Library e Google Books"
+- Scanner Android: BarcodeDetector usa canvas off-screen + autofocus continuo + throttle 250ms
 - QuaggaJS necessario per iOS (no BarcodeDetector nativo su Safari < 17)
 - SQLite in WAL mode: `PRAGMA journal_mode=WAL` su ogni connessione
 - Deploy target finale: Docker su Unraid (vedi DOCKER-UNRAID.md + DOCKER-CLAUDECODE.md)
