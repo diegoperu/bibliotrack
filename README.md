@@ -26,6 +26,7 @@ Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN d
 - 🎨 **4 temi**: Light · Dark · Catppuccin Light · Catppuccin Dark
 - 📱 **Responsive**: ottimizzata per smartphone, funziona su desktop
 - 🔒 **Autenticazione JWT** con refresh token automatico
+- 🏠 **Installabile** come PWA (home screen iOS/Android, standalone)
 
 ---
 
@@ -450,6 +451,7 @@ Documentazione interattiva: `http://server/docs`
 | — | ISBN fallback IBS.it (Algolia) + logging cascade | ✅ |
 | — | Fix scanner barcode Android (BarcodeDetector) | ✅ |
 | — | Fix scanner barcode Firefox/iOS (QuaggaJS) | ✅ |
+| 10 | Icone + PWA manifest (favicon, home screen, Unraid) | ✅ |
 
 ---
 
