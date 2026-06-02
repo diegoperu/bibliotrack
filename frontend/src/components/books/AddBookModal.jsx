@@ -253,9 +253,9 @@ export default function AddBookModal({ onClose, onSaved }) {
     } catch (e) {
       let msg
       if (!e.response) {
-        msg = 'Impossibile raggiungere il server.\nVerifica che il backend sia raggiungibile.'
+        msg = 'Impossibile raggiungere il server. Verifica che il backend sia raggiungibile.'
       } else if (e.response.status === 404) {
-        msg = 'ISBN non trovato nelle banche dati (Open Library, Google Books).\nProva a inserire manualmente.'
+        msg = 'ISBN non trovato in Open Library né in Google Books. Inserisci il libro manualmente.'
       } else if (e.response.status === 400) {
         msg = e.response.data?.detail || 'Formato ISBN non valido'
       } else {

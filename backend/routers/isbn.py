@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -10,6 +11,8 @@ from services.isbn_lookup import lookup_isbn, normalize_isbn, is_valid_isbn
 from services.cover_download import download_cover
 from middleware.auth import get_current_user
 from config import settings
+
+logger = logging.getLogger("bibliotrack.isbn")
 
 router = APIRouter(prefix="/isbn", tags=["isbn"])
 
@@ -25,10 +28,16 @@ class ImportOptions(BaseModel):
 async def get_isbn_metadata(isbn: str):
     isbn = normalize_isbn(isbn)
     if not is_valid_isbn(isbn):
+        logger.warning("isbn_request invalid isbn=%s", isbn)
         raise HTTPException(status_code=400, detail="Invalid ISBN format (must be 10 or 13 digits)")
     data = await lookup_isbn(isbn)
     if not data:
-        raise HTTPException(status_code=404, detail="ISBN not found in any source")
+        logger.error("isbn_request not_found isbn=%s — returned 404 to client", isbn)
+        raise HTTPException(
+            status_code=404,
+            detail="ISBN non trovato in Open Library né in Google Books. Prova inserimento manuale.",
+        )
+    logger.info("isbn_request found isbn=%s source=%s title=%r", isbn, data.get("source"), data.get("title"))
     return data
 
 
