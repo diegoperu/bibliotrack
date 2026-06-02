@@ -19,7 +19,7 @@ Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN d
 ## Funzionalità
 
 - 📷 **Scansione ISBN** da fotocamera (Chrome/Android nativo, iOS via QuaggaJS)
-- 🔍 **Lookup automatico** metadati + copertina — OPAC SBN (editori italiani 978-88-\*/979-12-\*), Open Library, Google Books
+- 🔍 **Lookup automatico** metadati + copertina — cascade a 5 livelli: OPAC SBN → Open Library → Google Books → fallback italiani
 - ✍️ **Inserimento manuale** come alternativa
 - 📚 **Libreria personale** con filtri, raggruppamento e ordinamento
 - 👤 **Gestione utenti** (admin / user)
@@ -38,7 +38,7 @@ Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN d
 | Auth | JWT (python-jose) + bcrypt |
 | Frontend | React 18 + Vite + TailwindCSS 3 |
 | Camera | BarcodeDetector API + QuaggaJS (iOS) |
-| Metadata | OPAC SBN (IT) · Open Library · Google Books |
+| Metadata | OPAC SBN (IT) · Open Library · Google Books · IBS.it (fallback IT) |
 | Server | Nginx + systemd |
 
 ---
@@ -447,6 +447,7 @@ Documentazione interattiva: `http://server/docs`
 | 7 | Deploy & Documentazione | ✅ |
 | 8 | Docker + Unraid | ✅ |
 | — | Audit sicurezza | ✅ |
+| — | ISBN fallback IBS.it (Algolia) + logging cascade | ✅ |
 
 ---
 

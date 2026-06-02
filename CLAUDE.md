@@ -28,7 +28,7 @@
 | Auth | JWT (python-jose) + bcrypt (diretto, passlib rimosso) |
 | Frontend | React 18 + Vite + TailwindCSS 3 |
 | Camera/ISBN | BarcodeDetector API + QuaggaJS (fallback iOS) |
-| Metadata ISBN | OPAC SBN via isbnlib-sbn (primario IT) + Open Library API + Google Books API (fallback) |
+| Metadata ISBN | OPAC SBN via isbnlib-sbn (primario IT) + Open Library API + Google Books API + IBS.it Algolia (fallback IT) |
 | Copertine | Open Library Covers API + scraping fallback |
 | Server | Nginx reverse proxy + systemd |
 | Python deps | `uv` (package manager consigliato) |
@@ -477,15 +477,43 @@ owner_id: int (FK → User)
 
 ---
 
+### ✅ STEP 9 — ISBN Lookup: fallback IBS.it + logging cascade
+**Obiettivo:** Coprire ISBN italiani non presenti in SBN/OpenLibrary/Google Books
+
+Tasks:
+- [x] Level 5 cascade: query Algolia di IBS.it (chiavi pubbliche embedded nel loro frontend JS)
+- [x] Parser `_parse_ibs_algolia_hit`: titolo, autori, editore, anno, copertina 400px, genere
+- [x] Match esatto per EAN (la query Algolia è fuzzy — filtro anti falsi positivi)
+- [x] Logging dettagliato a ogni livello del cascade (livello, source, hit/miss/error, elapsed)
+- [x] Log ERROR finale con sommario di tutti i livelli se lookup fallisce
+- [x] Messaggio errore 404 frontend aggiornato: cita solo Open Library e Google Books
+- [x] 40/40 test pass
+
+Files modificati:
+`backend/services/isbn_lookup.py` (Level 5 Algolia, logging cascade completo),
+`backend/routers/isbn.py` (log 404 esplicito, detail message coerente),
+`frontend/src/components/books/AddBookModal.jsx` (errore 404 aggiornato)
+
+Note tecniche:
+- IBS.it è SPA React: il contenuto ricerca è caricato via Algolia, non nell'HTML iniziale → JSON-LD scraping inutile
+- Algolia AppID: `FBVFK8AIGY`, API key: `460ca8aeaa21b30a35784e7125bfca37`, index: `prd_IBS`
+- Cover URL pattern IBS: `https://www.ibs.it/images/{isbn}_0_0_400_0_0.jpg`
+- Language hardcoded a `ita` per tutti i risultati IBS (catalogo solo italiano)
+- IBS non è citato nell'UI — se trova il libro appare normalmente; se fallisce l'utente vede solo "Open Library / Google Books"
+- Filter Algolia: `productType:ITBOOK` per escludere ebook e accessori
+
+---
+
 ## Sessione Corrente
 
-**Ultimo step completato:** Audit sicurezza (35/35 test pass — tutti gli step completati ✅)
+**Ultimo step completato:** Step 9 — ISBN fallback IBS.it Algolia + logging cascade (40/40 test pass ✅)
 **Stato:** Progetto completo e pronto per il deploy
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
 - Refresh token: body JSON (non query param) — breaking change rispetto a versioni precedenti
-- SBN (isbnlib-sbn) aggiunto come fonte primaria per ISBN italiani (978-88-*, 979-12-*)
-- Open Library preferita per copertura italiana (ISBN 978-88-* ben rappresentati) — fallback dopo SBN
+- Cascade lookup ISBN (5 livelli): SBN (solo IT) → OpenLibrary /api/books → /search.json → Google Books → IBS.it Algolia
+- IBS.it usa Algolia (SPA React) — chiavi pubbliche `FBVFK8AIGY` / `460ca8aeaa21b30a35784e7125bfca37` index `prd_IBS`
+- Source IBS non esposto nell'UI — errore 404 cita solo "Open Library e Google Books"
 - QuaggaJS necessario per iOS (no BarcodeDetector nativo su Safari < 17)
 - SQLite in WAL mode: `PRAGMA journal_mode=WAL` su ogni connessione
 - Deploy target finale: Docker su Unraid (vedi DOCKER-UNRAID.md + DOCKER-CLAUDECODE.md)
