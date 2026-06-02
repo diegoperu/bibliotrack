@@ -13,17 +13,20 @@ function isSecureContext() {
 
 export default function ISBNScanner({ onDetect }) {
   const videoRef     = useRef(null)
+  const canvasRef    = useRef(null)   // off-screen canvas for BarcodeDetector (more reliable than video on Android)
   const containerRef = useRef(null)
   const streamRef    = useRef(null)
   const rafRef       = useRef(null)
   const quaggaRef    = useRef(null)
   const detectorRef  = useRef(null)
+  const scanActiveRef = useRef(false) // prevents overlapping detect() calls
 
   const [status, setStatus]     = useState('idle')
   const [errorMsg, setErrorMsg] = useState('')
   // status: 'idle' | 'requesting' | 'active' | 'denied' | 'error' | 'found'
 
   const cleanup = useCallback(() => {
+    scanActiveRef.current = false
     if (rafRef.current)    { cancelAnimationFrame(rafRef.current); rafRef.current = null }
     if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null }
     if (quaggaRef.current) { try { quaggaRef.current.stop() } catch {} quaggaRef.current = null }
@@ -38,22 +41,67 @@ export default function ISBNScanner({ onDetect }) {
   }, [cleanup, onDetect])
 
   /* ── BarcodeDetector loop ─────────────────────────────────────── */
-  const startNativeLoop = useCallback(() => {
+  const startNativeLoop = useCallback(async () => {
     if (!detectorRef.current) {
       detectorRef.current = new window.BarcodeDetector({
         formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'],
       })
     }
-    const scan = async () => {
-      const video = videoRef.current
-      if (!video || video.readyState < 2) { rafRef.current = requestAnimationFrame(scan); return }
+
+    // Request continuous autofocus on Android — essential for barcode scanning.
+    // Without this, many Android cameras stay at fixed focus and barcodes stay blurry.
+    const track = streamRef.current?.getVideoTracks()[0]
+    if (track) {
       try {
-        const results = await detectorRef.current.detect(video)
-        if (results.length > 0) { handleFound(results[0].rawValue); return }
-      } catch { /* single frame error — ignore */ }
-      rafRef.current = requestAnimationFrame(scan)
+        const caps = track.getCapabilities?.()
+        if (caps?.focusMode?.includes('continuous')) {
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] })
+        }
+      } catch { /* not supported on this device — continue anyway */ }
     }
-    scan()
+
+    let lastScanTime = 0
+
+    const scan = (timestamp) => {
+      if (!scanActiveRef.current) return
+
+      const video = videoRef.current
+      if (!video || video.readyState < 2 || video.videoWidth === 0) {
+        rafRef.current = requestAnimationFrame(scan)
+        return
+      }
+
+      // Throttle: attempt decode at most ~4x/second so the camera has time to
+      // autofocus between attempts. 60fps detect() floods the API and prevents focus.
+      if (timestamp - lastScanTime < 250) {
+        rafRef.current = requestAnimationFrame(scan)
+        return
+      }
+      lastScanTime = timestamp
+
+      // Draw current video frame to canvas, then detect from the canvas.
+      // BarcodeDetector on Android Chrome is significantly more reliable on a
+      // canvas ImageData than on a live <video> element.
+      const canvas = canvasRef.current
+      if (!canvas) { rafRef.current = requestAnimationFrame(scan); return }
+      canvas.width  = video.videoWidth
+      canvas.height = video.videoHeight
+      canvas.getContext('2d').drawImage(video, 0, 0)
+
+      detectorRef.current.detect(canvas).then((results) => {
+        if (!scanActiveRef.current) return
+        if (results.length > 0) {
+          handleFound(results[0].rawValue)
+        } else {
+          rafRef.current = requestAnimationFrame(scan)
+        }
+      }).catch(() => {
+        if (scanActiveRef.current) rafRef.current = requestAnimationFrame(scan)
+      })
+    }
+
+    scanActiveRef.current = true
+    rafRef.current = requestAnimationFrame(scan)
   }, [handleFound])
 
   /* ── QuaggaJS (Firefox + iOS fallback) ───────────────────────── */
@@ -69,7 +117,7 @@ export default function ISBNScanner({ onDetect }) {
               name: 'Live',
               type: 'LiveStream',
               target: containerRef.current, // NOTE: must be visible (not display:none) — see JSX
-              constraints: { facingMode: 'environment' },
+              constraints: { facingMode: { ideal: 'environment' } },
             },
             locator: { patchSize: 'medium', halfSample: true },
             numOfWorkers: 0,
@@ -131,13 +179,27 @@ export default function ISBNScanner({ onDetect }) {
 
     if (IS_NATIVE) {
       try {
+        // Use ideal for facingMode — hard 'environment' can fail on devices where
+        // the back camera isn't immediately enumerated. Also skip explicit resolution
+        // constraints: letting the browser pick avoids incompatible camera modes on
+        // some Android devices that cause the stream to never produce frames.
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width:  { ideal: 1280 },
+            height: { ideal: 720 },
+          },
         })
         streamRef.current = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          await videoRef.current.play()
+        const video = videoRef.current
+        if (video) {
+          video.srcObject = stream
+          // Wait for metadata so videoWidth/videoHeight are available before scanning
+          await new Promise((resolve) => {
+            if (video.readyState >= 1) { resolve(); return }
+            video.onloadedmetadata = resolve
+          })
+          await video.play()
         }
         setStatus('active')
         startNativeLoop()
@@ -178,15 +240,20 @@ export default function ISBNScanner({ onDetect }) {
           transition: 'border-color 0.2s ease',
         }}
       >
-        {/* BarcodeDetector: native video element */}
+        {/* BarcodeDetector: native video element + off-screen canvas for detection */}
         {IS_NATIVE && (
-          <video
-            ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover"
-            playsInline
-            muted
-            style={{ display: isActive ? 'block' : 'none' }}
-          />
+          <>
+            <video
+              ref={videoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              playsInline
+              muted
+              style={{ display: isActive ? 'block' : 'none' }}
+            />
+            {/* Canvas is never shown — used only to snapshot video frames for BarcodeDetector,
+                which is more reliable than detecting directly on the live <video> on Android */}
+            <canvas ref={canvasRef} style={{ display: 'none' }} />
+          </>
         )}
 
         {/* QuaggaJS container — MUST use visibility:hidden (not display:none) so the
