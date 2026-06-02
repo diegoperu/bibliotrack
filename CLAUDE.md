@@ -544,20 +544,43 @@ Note tecniche:
 - Aggiunti `width/height: { ideal: 1280/720 }` ai constraints Quagga per compatibilità camera Android
 - Build: 126 moduli, no errori
 
+### ✅ FIX — Scanner barcode: misread prima cifra + ISBN in messaggio errore
+**Problema:** Scanner leggeva barcode errato (prima cifra sbagliata, es. 9→7, 9→0). ISBN non visibile nel messaggio di errore 404.
+
+Root cause e fix:
+
+| Causa | Fix |
+|---|---|
+| Frame mosso/sfocato produce prima cifra errata | Validazione checksum EAN-13/EAN-8/ISBN-10 — un digit sbagliato rompe quasi sempre il checksum → scartato subito |
+| Singolo frame scorretto supera checksum | 2 letture consecutive identiche (`CONFIRM_NEEDED=2`) richieste prima di accettare |
+| ISBN non visibile in caso di errore lookup | Messaggio 404 aggiornato: `"ISBN {isbn} non trovato…"` per verifica manuale |
+
+Verifica: `_validateEAN13('7788809935358')` → `false`, `_validateEAN13('9788809935358')` → `true`
+
+Files modificati:
+`frontend/src/components/scanner/ISBNScanner.jsx` (checksum + confirm, entrambi i path),
+`frontend/src/components/books/AddBookModal.jsx` (ISBN nel messaggio 404)
+
+Note tecniche:
+- `isValidChecksum()`: dispatcher su EAN-13 / EAN-8 / ISBN-10 in base alla lunghezza
+- `lastCodeRef` + `confirmRef` resettati in cleanup per evitare stato stale
+- Delay aggiunto: ~500ms BarcodeDetector (2×250ms), ~400ms Quagga (2×200ms a 5fps)
+- Build: 126 moduli, no errori
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** Fix scanner QuaggaJS (Firefox/iOS) ✅
+**Ultimo step completato:** Fix scanner misread checksum + conferma consecutiva ✅
 **Stato:** Progetto completo e pronto per il deploy
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
 - Refresh token: body JSON (non query param) — breaking change rispetto a versioni precedenti
 - Cascade lookup ISBN (5 livelli): SBN (solo IT) → OpenLibrary /api/books → /search.json → Google Books → IBS.it Algolia
 - IBS.it usa Algolia (SPA React) — chiavi pubbliche `FBVFK8AIGY` / `460ca8aeaa21b30a35784e7125bfca37` index `prd_IBS`
-- Source IBS non esposto nell'UI — errore 404 cita solo "Open Library e Google Books"
-- Scanner BarcodeDetector (Chrome/Android): canvas off-screen + autofocus continuo + throttle 250ms
-- Scanner QuaggaJS (Firefox/iOS): autofocus via DOM track + frequency:5 + numOfWorkers da hardwareConcurrency
+- Source IBS non esposto nell'UI — errore 404 cita solo "Open Library e Google Books" + ISBN letto
+- Scanner BarcodeDetector (Chrome/Android): canvas off-screen + autofocus + throttle 250ms + checksum + 2 confirm
+- Scanner QuaggaJS (Firefox/iOS): autofocus via DOM track + frequency:5 + workers + checksum + 2 confirm
 - QuaggaJS necessario per iOS (no BarcodeDetector nativo su Safari < 17)
 - SQLite in WAL mode: `PRAGMA journal_mode=WAL` su ogni connessione
 - Deploy target finale: Docker su Unraid (vedi DOCKER-UNRAID.md + DOCKER-CLAUDECODE.md)
