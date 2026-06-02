@@ -617,11 +617,29 @@ Nessuna vulnerabilità critica o alta introdotta. Un solo fix applicato (`manife
 Files modificati:
 `docker/nginx-internal.conf`, `deploy/nginx.conf`
 
+### ✅ FIX — Libreria admin mostrava libri di tutti gli utenti
+**Problema:** Admin vedeva i libri di tutti gli utenti nella propria libreria personale.
+
+Root cause e fix:
+
+| Causa | Fix |
+|---|---|
+| `GET /books/` saltava `owner_id` filter per admin → restituiva tutti i libri | Filtro `owner_id` sempre attivo; aggiunto param `all_users=true` (admin-only) per pannello admin |
+| Admin panel chiamava `GET /books/` senza distinzione | `Admin.jsx`: aggiunto `all_users: true` nei params del fetch "tutti i libri" |
+
+Files modificati:
+`backend/routers/books.py` (logica filtro), `frontend/src/pages/Admin.jsx` (param fetch)
+
+Note tecniche:
+- `all_users=true` ignorato se chiamato da utente non-admin (condizione `and current_user.role == UserRole.admin`)
+- Libreria personale (`Library.jsx`) non passa `all_users` → admin vede solo i propri libri
+- 40/40 test pass
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** Audit sicurezza post Step 10 ✅
+**Ultimo step completato:** Fix libreria admin — filtro owner_id ✅
 **Stato:** Progetto completo e pronto per il deploy
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
