@@ -600,11 +600,28 @@ Note tecniche:
 - `manifest.webmanifest`: `purpose: maskable` su icon-512 per Android adaptive icons
 - Unraid template: `<Icon>` punta a raw GitHub `diegoperu/bibliotrack/main/docker/icon.png`
 
+### ✅ AUDIT SICUREZZA — Post Step 10
+
+| Gravità | Problema | Esito |
+|---|---|---|
+| 🟡 BASSO | Algolia keys hardcoded in `isbn_lookup.py` | **Accettabile** — chiavi read-only pubbliche embedded nel JS di IBS.it, visibili a ogni browser. Non sono segreti BiblioTrack. Documentato nel codice. |
+| 🟡 BASSO | `manifest.webmanifest` senza Cache-Control esplicito in nginx | **Fixato** — aggiunto `location = /manifest.webmanifest { add_header Cache-Control "no-cache"; }` in entrambi i nginx (Docker + deploy) |
+| ✅ OK | Anti-FOUC script `localStorage` → `setAttribute('data-theme', t)` | `setAttribute` non esegue codice. Safe. |
+| ✅ OK | ISBN nel messaggio 404 (template literal) | Testo puro, non innerHTML. Nessun XSS. |
+| ✅ OK | ISBN → Algolia (JSON body) dopo validazione `\d{13}` | Nessun SSRF — URL hardcoded, ISBN solo nel body. |
+| ✅ OK | CSP e manifest | `manifest-src` fallback su `default-src 'self'` copre `/manifest.webmanifest`. |
+| ✅ OK | `connect-src 'self'` in CSP | Copre chiamate API anche in modalità standalone PWA (stessa origine). |
+
+Nessuna vulnerabilità critica o alta introdotta. Un solo fix applicato (`manifest.webmanifest` cache).
+
+Files modificati:
+`docker/nginx-internal.conf`, `deploy/nginx.conf`
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** Step 10 — Icone + PWA manifest + README aggiornato ✅
+**Ultimo step completato:** Audit sicurezza post Step 10 ✅
 **Stato:** Progetto completo e pronto per il deploy
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
