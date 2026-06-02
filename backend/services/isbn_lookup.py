@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import re
 import time
@@ -22,16 +21,11 @@ OPENLIBRARY_SEARCH = "https://openlibrary.org/search.json"
 GOOGLE_BOOKS_API   = "https://www.googleapis.com/books/v1/volumes"
 TIMEOUT = 12.0
 
-# Headers that mimic a browser for scraping fallback
-_SCRAPE_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "it-IT,it;q=0.9,en;q=0.5",
-}
+# IBS.it uses Algolia for search. These are the public read-only search keys
+# embedded in IBS.it's frontend JavaScript (exposed to every browser visitor).
+_IBS_ALGOLIA_APP_ID  = "FBVFK8AIGY"
+_IBS_ALGOLIA_API_KEY = "460ca8aeaa21b30a35784e7125bfca37"
+_IBS_ALGOLIA_INDEX   = "prd_IBS"
 
 
 def normalize_isbn(isbn: str) -> str:
@@ -140,75 +134,31 @@ def _parse_google_books(info: dict) -> dict:
     }
 
 
-def _extract_jsonld_books(html: str) -> list[dict]:
-    """Return all JSON-LD objects that look like a Book or Product from an HTML page."""
-    pattern = r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
-    results = []
-    for raw in re.findall(pattern, html, re.DOTALL | re.IGNORECASE):
-        try:
-            blob = json.loads(raw.strip())
-        except (json.JSONDecodeError, ValueError):
-            continue
-        items = blob if isinstance(blob, list) else [blob]
-        for item in items:
-            if isinstance(item, dict) and item.get("@type") in ("Book", "Product"):
-                results.append(item)
-    return results
-
-
-def _parse_jsonld_item(item: dict, isbn: str, source: str) -> Optional[dict]:
-    """Convert a JSON-LD Book/Product object to our internal dict."""
-    title = item.get("name") or item.get("title", "")
+def _parse_ibs_algolia_hit(hit: dict, isbn: str) -> Optional[dict]:
+    """Convert an IBS.it Algolia search hit to our internal dict."""
+    title = hit.get("title", "")
     if not title:
         return None
 
-    # Author
-    author_data = item.get("author", {})
-    if isinstance(author_data, list):
-        authors = [a.get("name", "") for a in author_data if isinstance(a, dict)]
-    elif isinstance(author_data, dict):
-        authors = [author_data.get("name", "")]
-    else:
-        authors = []
-    author = ", ".join(a for a in authors if a)
+    authors_raw = hit.get("authors") or []
+    authors = [a for a in authors_raw if a]
+    author = ", ".join(authors)
 
-    # Publisher
-    pub_data = item.get("publisher", {})
-    if isinstance(pub_data, dict):
-        publisher = pub_data.get("name")
-    elif isinstance(pub_data, str):
-        publisher = pub_data
-    else:
-        publisher = None
+    publishers_raw = hit.get("publisher") or []
+    publisher = publishers_raw[0] if publishers_raw else None
 
-    # Year
-    date_raw = item.get("datePublished") or item.get("copyrightYear", "")
-    year = _extract_year(str(date_raw)) if date_raw else None
+    year = _extract_year(str(hit.get("editionDate") or hit.get("publicationDate") or ""))
 
-    # Cover
-    image = item.get("image")
-    if isinstance(image, str):
-        cover_url = image
-    elif isinstance(image, dict):
-        cover_url = image.get("url") or image.get("contentUrl")
-    elif isinstance(image, list) and image:
-        first = image[0]
-        cover_url = first if isinstance(first, str) else (first.get("url") if isinstance(first, dict) else None)
+    # IBS cover: replace default size (200) with larger (400)
+    image_url = hit.get("image") or ""
+    if image_url:
+        cover_url = re.sub(r"_0_0_\d+_0_0", "_0_0_400_0_0", image_url)
     else:
         cover_url = None
 
-    # Pages
-    pages_raw = item.get("numberOfPages")
-    try:
-        pages = int(pages_raw) if pages_raw else None
-    except (ValueError, TypeError):
-        pages = None
-
-    # Language
-    lang = item.get("inLanguage")
-    language = lang if isinstance(lang, str) else None
-    if language and language.lower() in ("it", "italian", "italiano"):
-        language = "ita"
+    # Use the most specific category as genre
+    categories = hit.get("categories") or hit.get("department") or []
+    genre = categories[0] if categories else None
 
     return {
         "title":       title,
@@ -216,13 +166,13 @@ def _parse_jsonld_item(item: dict, isbn: str, source: str) -> Optional[dict]:
         "authors":     authors,
         "publisher":   publisher,
         "year":        year,
-        "language":    language,
-        "description": item.get("description"),
-        "pages":       pages,
+        "language":    "ita",  # IBS.it is Italian-only catalog
+        "description": None,
+        "pages":       None,
         "cover_url":   cover_url,
-        "genre":       None,
+        "genre":       genre,
         "isbn":        isbn,
-        "source":      source,
+        "source":      "ibs",
     }
 
 
@@ -261,31 +211,45 @@ async def _lookup_sbn(isbn: str) -> Optional[dict]:
 
 async def _lookup_web_scrape(isbn: str, client: httpx.AsyncClient) -> Optional[dict]:
     """
-    Hidden fallback: scrape major Italian book retailers for JSON-LD metadata.
-    Tries IBS.it (Italy's largest book retailer) and Feltrinelli.
+    Hidden fallback: query IBS.it via their public Algolia search index.
+    IBS.it is Italy's largest book retailer and has excellent Italian coverage.
+    The Algolia App ID and read-only API key are public (embedded in IBS.it's
+    frontend JS, visible to every browser visitor).
     This source is intentionally NOT exposed in user-facing error messages.
     """
-    targets = [
-        ("ibs",         f"https://www.ibs.it/search/?ts=as&type=book&query={isbn}"),
-        ("feltrinelli", f"https://www.lafeltrinelli.it/ricerca/q/{isbn}"),
-    ]
+    url = f"https://{_IBS_ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/{_IBS_ALGOLIA_INDEX}/query"
+    headers = {
+        "X-Algolia-Application-Id": _IBS_ALGOLIA_APP_ID,
+        "X-Algolia-API-Key": _IBS_ALGOLIA_API_KEY,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "query": isbn,
+        "hitsPerPage": 3,
+        "filters": "productType:ITBOOK",  # books only, not e-books or accessories
+    }
 
-    for source, url in targets:
-        try:
-            logger.debug("isbn_lookup web_scrape source=%s isbn=%s url=%s", source, isbn, url)
-            resp = await client.get(url, headers=_SCRAPE_HEADERS, follow_redirects=True)
-            logger.debug("isbn_lookup web_scrape source=%s isbn=%s status=%s", source, isbn, resp.status_code)
-            if resp.status_code != 200:
-                continue
-            candidates = _extract_jsonld_books(resp.text)
-            logger.debug("isbn_lookup web_scrape source=%s isbn=%s jsonld_count=%d", source, isbn, len(candidates))
-            for item in candidates:
-                result = _parse_jsonld_item(item, isbn, source)
-                if result and result.get("title"):
+    try:
+        logger.debug("isbn_lookup ibs_algolia isbn=%s", isbn)
+        resp = await client.post(url, headers=headers, json=payload)
+        logger.debug("isbn_lookup ibs_algolia isbn=%s status=%s", isbn, resp.status_code)
+        if resp.status_code != 200:
+            logger.warning("isbn_lookup ibs_algolia isbn=%s non-200 status=%s", isbn, resp.status_code)
+            return None
+
+        hits = resp.json().get("hits", [])
+        logger.debug("isbn_lookup ibs_algolia isbn=%s hits=%d", isbn, len(hits))
+
+        for hit in hits:
+            # Only accept exact ISBN match (query is fuzzy — avoid false positives)
+            if hit.get("ean") == isbn or hit.get("objectID") == isbn:
+                result = _parse_ibs_algolia_hit(hit, isbn)
+                if result:
                     return result
-        except Exception as exc:
-            logger.debug("isbn_lookup web_scrape source=%s isbn=%s error: %s", source, isbn, exc)
-            continue
+
+        logger.warning("isbn_lookup ibs_algolia isbn=%s no exact ean match in %d hits", isbn, len(hits))
+    except Exception as exc:
+        logger.warning("isbn_lookup ibs_algolia isbn=%s error: %s", isbn, exc)
 
     return None
 
