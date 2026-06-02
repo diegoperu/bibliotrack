@@ -574,11 +574,37 @@ Note tecniche:
 - Delay aggiunto: ~500ms BarcodeDetector (2×250ms), ~400ms Quagga (2×200ms a 5fps)
 - Build: 126 moduli, no errori
 
+### ✅ STEP 10 — Icone + PWA Manifest
+**Obiettivo:** Favicon browser, icona home screen iOS/Android, PWA manifest, icona Docker Unraid
+
+Tasks:
+- [x] Resize icone da sorgente 1024×512px con Pillow (ImageMagick non disponibile su Windows)
+- [x] `frontend/public/icon-512.png` — 512×512 PWA splash + sorgente
+- [x] `frontend/public/icon-192.png` — 192×192 PWA Android
+- [x] `frontend/public/apple-touch-icon.png` — 180×180 iOS home screen
+- [x] `frontend/public/favicon.ico` — 32×32 browser tab
+- [x] `frontend/public/manifest.webmanifest` — PWA standalone, theme_color #cba6f7, background #1e1e2e
+- [x] `docker/icon.png` — 128×128 icona Unraid Docker UI
+- [x] `frontend/index.html` — meta description, theme-color, favicon, apple-touch-icon, manifest link
+- [x] `docker/unraid-template.xml` — `<Icon>` URL aggiornato a `diegoperu/bibliotrack`
+- [x] Build: 126 moduli, no errori; tutti i file presenti in `dist/`
+
+Files creati/modificati:
+`frontend/public/favicon.ico`, `frontend/public/icon-192.png`, `frontend/public/icon-512.png`,
+`frontend/public/apple-touch-icon.png`, `frontend/public/manifest.webmanifest`,
+`docker/icon.png`, `frontend/index.html`, `docker/unraid-template.xml`
+
+Note tecniche:
+- ImageMagick assente su Windows → usato Pillow (`pip install Pillow` su Python 3.14 locale)
+- Anti-FOUC script in `index.html` preservato intatto
+- `manifest.webmanifest`: `purpose: maskable` su icon-512 per Android adaptive icons
+- Unraid template: `<Icon>` punta a raw GitHub `diegoperu/bibliotrack/main/docker/icon.png`
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** Integrazione icone + PWA manifest ✅
+**Ultimo step completato:** Step 10 — Icone + PWA manifest ✅
 **Stato:** Progetto completo e pronto per il deploy
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
