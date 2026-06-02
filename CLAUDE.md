@@ -75,6 +75,12 @@ bibliotrack/
 │   ├── vite.config.js
 │   ├── tailwind.config.js
 │   ├── index.html
+│   ├── public/
+│   │   ├── favicon.ico            ← 32×32 browser tab
+│   │   ├── apple-touch-icon.png   ← 180×180 iOS home screen
+│   │   ├── icon-192.png           ← 192×192 PWA Android
+│   │   ├── icon-512.png           ← 512×512 PWA splash + sorgente icone
+│   │   └── manifest.webmanifest   ← PWA manifest
 │   └── src/
 │       ├── main.jsx
 │       ├── App.jsx
@@ -116,6 +122,7 @@ bibliotrack/
 │   ├── setup.sh               ← script installazione server
 │   └── backup.sh              ← backup SQLite giornaliero
 ├── docker/
+│   ├── icon.png               ← 128×128 icona Unraid Docker UI
 │   ├── nginx-internal.conf    ← nginx interno container (porta 8080)
 │   ├── supervisord.conf       ← process manager (nginx + uvicorn)
 │   ├── entrypoint.sh          ← startup: check SECRET_KEY, crea admin, avvia supervisor
@@ -571,7 +578,7 @@ Note tecniche:
 
 ## Sessione Corrente
 
-**Ultimo step completato:** Fix scanner misread checksum + conferma consecutiva ✅
+**Ultimo step completato:** Integrazione icone + PWA manifest ✅
 **Stato:** Progetto completo e pronto per il deploy
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
@@ -582,6 +589,9 @@ Note tecniche:
 - Scanner BarcodeDetector (Chrome/Android): canvas off-screen + autofocus + throttle 250ms + checksum + 2 confirm
 - Scanner QuaggaJS (Firefox/iOS): autofocus via DOM track + frequency:5 + workers + checksum + 2 confirm
 - QuaggaJS necessario per iOS (no BarcodeDetector nativo su Safari < 17)
+- Icone: sorgente 512×512 in `frontend/public/`, resize con Pillow (ImageMagick non disponibile su Windows)
+- PWA manifest: `manifest.webmanifest` con theme_color Catppuccin Mocha (#cba6f7), background #1e1e2e
+- Unraid: `docker/icon.png` 128×128, URL raw GitHub `diegoperu` in `unraid-template.xml`
 - SQLite in WAL mode: `PRAGMA journal_mode=WAL` su ogni connessione
 - Deploy target finale: Docker su Unraid (vedi DOCKER-UNRAID.md + DOCKER-CLAUDECODE.md)
 - Deploy alternativo: Linux server con Nginx disponibile, dominio proprio (vedi deploy/)

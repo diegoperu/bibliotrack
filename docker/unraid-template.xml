@@ -15,7 +15,7 @@
   </Overview>
   <Category>MediaApp:Books</Category>
   <WebUI>http://[IP]:[PORT:8080]/</WebUI>
-  <Icon>https://raw.githubusercontent.com/tuoutente/bibliotrack/main/docker/icon.png</Icon>
+  <Icon>https://raw.githubusercontent.com/diegoperu/bibliotrack/main/docker/icon.png</Icon>
   <Description>
     Personal book library with ISBN barcode scanner.
     Auto-fetches metadata and cover art via Open Library API.
