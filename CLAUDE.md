@@ -604,7 +604,7 @@ Note tecniche:
 
 ## Sessione Corrente
 
-**Ultimo step completato:** Step 10 — Icone + PWA manifest ✅
+**Ultimo step completato:** Step 10 — Icone + PWA manifest + README aggiornato ✅
 **Stato:** Progetto completo e pronto per il deploy
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
