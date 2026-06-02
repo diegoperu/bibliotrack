@@ -452,6 +452,7 @@ Documentazione interattiva: `http://server/docs`
 | — | Fix scanner barcode Android (BarcodeDetector) | ✅ |
 | — | Fix scanner barcode Firefox/iOS (QuaggaJS) | ✅ |
 | 10 | Icone + PWA manifest (favicon, home screen, Unraid) | ✅ |
+| — | Fix libreria admin: owner filter sempre attivo | ✅ |
 
 ---
 
