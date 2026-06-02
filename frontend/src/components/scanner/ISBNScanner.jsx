@@ -2,6 +2,10 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 
 const IS_NATIVE = typeof window !== 'undefined' && 'BarcodeDetector' in window
 
+// Number of consecutive identical reads required before accepting a barcode.
+// Filters single-frame noise that causes misreads (e.g. first digit 9→7).
+const CONFIRM_NEEDED = 2
+
 function isSecureContext() {
   return (
     window.isSecureContext ||
@@ -11,15 +15,61 @@ function isSecureContext() {
   )
 }
 
+/* ── EAN/ISBN checksum validators ─────────────────────────────────
+   A misread digit almost always breaks the checksum. Validating before
+   accepting eliminates the vast majority of first-digit errors. */
+
+function _validateEAN13(s) {
+  let sum = 0
+  for (let i = 0; i < 12; i++) {
+    const d = parseInt(s[i], 10)
+    if (isNaN(d)) return false
+    sum += d * (i % 2 === 0 ? 1 : 3)
+  }
+  return (10 - (sum % 10)) % 10 === parseInt(s[12], 10)
+}
+
+function _validateEAN8(s) {
+  let sum = 0
+  for (let i = 0; i < 7; i++) {
+    const d = parseInt(s[i], 10)
+    if (isNaN(d)) return false
+    sum += d * (i % 2 === 0 ? 3 : 1)
+  }
+  return (10 - (sum % 10)) % 10 === parseInt(s[7], 10)
+}
+
+function _validateISBN10(s) {
+  let sum = 0
+  for (let i = 0; i < 9; i++) {
+    const d = parseInt(s[i], 10)
+    if (isNaN(d)) return false
+    sum += d * (10 - i)
+  }
+  const last = s[9].toUpperCase() === 'X' ? 10 : parseInt(s[9], 10)
+  if (isNaN(last)) return false
+  return (sum + last) % 11 === 0
+}
+
+function isValidChecksum(code) {
+  const s = code.replace(/[-\s]/g, '')
+  if (s.length === 13) return _validateEAN13(s)
+  if (s.length === 8)  return _validateEAN8(s)
+  if (s.length === 10) return _validateISBN10(s)
+  return false
+}
+
 export default function ISBNScanner({ onDetect }) {
-  const videoRef     = useRef(null)
-  const canvasRef    = useRef(null)   // off-screen canvas for BarcodeDetector (more reliable than video on Android)
-  const containerRef = useRef(null)
-  const streamRef    = useRef(null)
-  const rafRef       = useRef(null)
-  const quaggaRef    = useRef(null)
-  const detectorRef  = useRef(null)
-  const scanActiveRef = useRef(false) // prevents overlapping detect() calls
+  const videoRef      = useRef(null)
+  const canvasRef     = useRef(null)   // off-screen canvas for BarcodeDetector (more reliable than video on Android)
+  const containerRef  = useRef(null)
+  const streamRef     = useRef(null)
+  const rafRef        = useRef(null)
+  const quaggaRef     = useRef(null)
+  const detectorRef   = useRef(null)
+  const scanActiveRef = useRef(false)  // prevents overlapping detect() calls
+  const lastCodeRef   = useRef(null)   // last seen barcode value
+  const confirmRef    = useRef(0)      // consecutive-read counter
 
   const [status, setStatus]     = useState('idle')
   const [errorMsg, setErrorMsg] = useState('')
@@ -27,6 +77,8 @@ export default function ISBNScanner({ onDetect }) {
 
   const cleanup = useCallback(() => {
     scanActiveRef.current = false
+    lastCodeRef.current   = null
+    confirmRef.current    = 0
     if (rafRef.current)    { cancelAnimationFrame(rafRef.current); rafRef.current = null }
     if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null }
     if (quaggaRef.current) { try { quaggaRef.current.stop() } catch {} quaggaRef.current = null }
@@ -91,10 +143,22 @@ export default function ISBNScanner({ onDetect }) {
       detectorRef.current.detect(canvas).then((results) => {
         if (!scanActiveRef.current) return
         if (results.length > 0) {
-          handleFound(results[0].rawValue)
-        } else {
-          rafRef.current = requestAnimationFrame(scan)
+          const code = results[0].rawValue.replace(/[-\s]/g, '')
+          // Reject if checksum invalid (catches most first-digit misreads instantly)
+          if (!isValidChecksum(code)) {
+            rafRef.current = requestAnimationFrame(scan)
+            return
+          }
+          // Require CONFIRM_NEEDED identical consecutive reads before accepting
+          if (code === lastCodeRef.current) {
+            confirmRef.current++
+            if (confirmRef.current >= CONFIRM_NEEDED) { handleFound(code); return }
+          } else {
+            lastCodeRef.current = code
+            confirmRef.current  = 1
+          }
         }
+        rafRef.current = requestAnimationFrame(scan)
       }).catch(() => {
         if (scanActiveRef.current) rafRef.current = requestAnimationFrame(scan)
       })
@@ -170,8 +234,20 @@ export default function ISBNScanner({ onDetect }) {
       } catch { /* autofocus not supported on this device — continue */ }
 
       Quagga.onDetected((result) => {
-        Quagga.stop()
-        handleFound(result.codeResult.code)
+        const code = (result.codeResult.code || '').replace(/[-\s]/g, '')
+        // Reject if checksum invalid
+        if (!isValidChecksum(code)) return
+        // Require CONFIRM_NEEDED identical consecutive reads
+        if (code === lastCodeRef.current) {
+          confirmRef.current++
+          if (confirmRef.current >= CONFIRM_NEEDED) {
+            Quagga.stop()
+            handleFound(code)
+          }
+        } else {
+          lastCodeRef.current = code
+          confirmRef.current  = 1
+        }
       })
     } catch (e) {
       // Outer catch: import failure or unexpected error not caught in init callback
