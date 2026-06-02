@@ -536,7 +536,7 @@ export default function Admin() {
   useEffect(() => {
     Promise.all([
       client.get('/users/'),
-      client.get('/books/', { params: { limit: 200, sort_by: 'added_at', order: 'desc' } }),
+      client.get('/books/', { params: { limit: 200, sort_by: 'added_at', order: 'desc', all_users: true } }),
     ])
       .then(([uRes, bRes]) => { setUsers(uRes.data); setBooks(bRes.data) })
       .catch((e) => setError(e.response?.data?.detail || 'Errore caricamento'))

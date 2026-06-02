@@ -35,9 +35,12 @@ def list_books(
     order: str = Query("desc"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    all_users: bool = Query(False),
 ):
     q = db.query(Book)
-    if current_user.role != UserRole.admin:
+    # all_users=true is admin-only and used exclusively by the admin panel.
+    # The personal library always filters by owner, regardless of role.
+    if not (all_users and current_user.role == UserRole.admin):
         q = q.filter(Book.owner_id == current_user.id)
     if author:
         q = q.filter(Book.author.ilike(f"%{author}%"))
