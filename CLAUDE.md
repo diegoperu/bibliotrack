@@ -132,6 +132,10 @@ bibliotrack/
 ├── docker-compose.yml         ← test locale
 ├── DOCKER-UNRAID.md           ← guida deploy Unraid
 ├── DOCKER-CLAUDECODE.md       ← note operative per Claude Code
+├── shared/                        ← contratti condivisi selfhosted/mobile
+│   ├── MOBILE-ROADMAP.md          ← architettura e roadmap versione mobile
+│   ├── export-schema.md           ← specifica formato export JSON versionato
+│   └── export-schema.v1.json      ← JSON Schema formale draft-07
 └── .gitignore
 ```
 
@@ -640,7 +644,11 @@ Note tecniche:
 ## Sessione Corrente
 
 **Ultimo step completato:** Fix libreria admin — filtro owner_id ✅
-**Stato:** Progetto completo e pronto per il deploy
+**Stato:** Selfhosted completo e pronto per deploy. Architettura mobile predisposta.
+**Prossimi step previsti:**
+- Deploy Docker su Unraid (quando pronto)
+- Nuove feature selfhosted (aggiungere qui quando definite)
+- STEP MOBILE-1: sviluppo versione mobile (Capacitor) — vedi shared/MOBILE-ROADMAP.md
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
 - Refresh token: body JSON (non query param) — breaking change rispetto a versioni precedenti
@@ -659,3 +667,8 @@ Note tecniche:
 - 1 admin, pochi utenti (< 10)
 - Container: porta 8080, volume unico /data (db + covers), supervisor gestisce nginx+uvicorn
 - SECRET_KEY: minimo 32 caratteri, genera con `openssl rand -hex 32`
+- Export schema v1 definito in shared/export-schema.md + shared/export-schema.v1.json
+- Mobile: SQLite locale device, single-user, no auth, export/import JSON versionato
+- Mobile: opzionalmente collegabile al backend selfhosted con token utente normale
+- Mobile: NON in sviluppo — roadmap in shared/MOBILE-ROADMAP.md
+- Nuove feature selfhosted che aggiungono campi a Book → aggiornare anche export-schema.md

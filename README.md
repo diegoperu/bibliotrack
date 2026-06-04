@@ -10,6 +10,16 @@
 
 # BiblioTrack 📚
 
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3-06B6D4?logo=tailwindcss&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?logo=docker&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-009639?logo=nginx&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN da fotocamera, metadati automatici via OPAC SBN (primario per editori italiani) + Open Library + Google Books.
 
 > Ispirata a Calibre-web. Funziona su smartphone e desktop.
@@ -453,6 +463,35 @@ Documentazione interattiva: `http://server/docs`
 | — | Fix scanner barcode Firefox/iOS (QuaggaJS) | ✅ |
 | 10 | Icone + PWA manifest (favicon, home screen, Unraid) | ✅ |
 | — | Fix libreria admin: owner filter sempre attivo | ✅ |
+| — | Predisposizione architettura mobile (Capacitor) | ✅ |
+
+---
+
+## Roadmap Mobile
+
+La versione mobile (Capacitor / Android + iOS) **non è ancora in sviluppo**.  
+L'architettura è stata predisposta — i contratti di dati e le decisioni tecniche sono documentati in [`shared/`](shared/).
+
+### Caratteristiche previste
+
+- **Single-user**, nessuna autenticazione
+- **SQLite locale** sul device (nessun backend richiesto)
+- **Scanner nativo** tramite plugin Capacitor
+- **Export / Import JSON** versionato per backup (Drive / iCloud)
+- **Collegamento opzionale** al backend selfhosted con token utente normale
+- Stessi 4 temi CSS e componenti UI della versione web
+
+### Step futuri
+
+| Step | Descrizione |
+|------|-------------|
+| MOBILE-1 | Setup Capacitor + SQLite locale + UI components |
+| MOBILE-2 | Scanner nativo + ISBN cascade lato client |
+| MOBILE-3 | Export / Import JSON (vedi [`shared/export-schema.md`](shared/export-schema.md)) |
+| MOBILE-4 | Cloud backup (Drive / iCloud) |
+| MOBILE-5 | Collegamento opzionale backend selfhosted |
+
+> Documentazione completa: [`shared/MOBILE-ROADMAP.md`](shared/MOBILE-ROADMAP.md)
 
 ---
 
