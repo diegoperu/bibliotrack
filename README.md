@@ -6,8 +6,6 @@
 /_____/_/_.___/_/_/\____/_/ /_/   \__,_/\___/_/|_|
 ```
 
-> **Progetto personale** — sviluppato per uso privato. Non è un prodotto commerciale.
-
 # BiblioTrack 📚
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
