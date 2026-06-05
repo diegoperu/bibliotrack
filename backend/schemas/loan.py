@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime, timezone
 
@@ -24,6 +24,13 @@ class LoanCreate(BaseModel):
     book_id: int
     borrower_name: str
     notes: Optional[str] = None
+
+    @field_validator("borrower_name")
+    @classmethod
+    def name_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("borrower_name cannot be blank")
+        return v
 
 
 class LoanReturn(BaseModel):
