@@ -32,6 +32,7 @@ Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN d
 - 🔍 **Lookup automatico** metadati + copertina — cascade a 5 livelli: OPAC SBN → Open Library → Google Books → fallback italiani
 - ✍️ **Inserimento manuale** come alternativa
 - 📚 **Libreria personale** con filtri, raggruppamento e ordinamento
+- 📤 **Gestione prestiti** — presta libri, traccia chi li ha, storico per persona
 - 👤 **Gestione utenti** (admin / user)
 - 🎨 **4 temi**: Light · Dark · Catppuccin Light · Catppuccin Dark
 - 📱 **Responsive**: ottimizzata per smartphone, funziona su desktop
@@ -377,6 +378,28 @@ Nella libreria:
 - **Raggruppa** — per genere, autore, stato, editore
 - **Vista** — griglia (⊞) o lista (≡)
 
+### Prestiti
+
+Nella sidebar: **"📤 Prestiti"**
+
+**Prestare un libro:**
+1. Apri il dettaglio del libro
+2. Tap **"📤 Presta questo libro"**
+3. Digita il nome del destinatario (autocomplete su persone già note)
+4. Aggiungi note opzionali e conferma
+
+**Segnare come restituito:**
+- Dal dettaglio libro: tap **"✓ Segna come restituito"**
+- Dalla pagina Prestiti → tab **"Attivi"**: tap **"✓ Restituito"** sulla card
+
+**Pagina Prestiti:**
+- **Tab "Attivi"** — libri attualmente in prestito, ordinati dal più vecchio
+- **Tab "Per persona"** — accordion per persona con storico completo (attivi evidenziati)
+
+Il badge **📤 Prestato** appare sulla card del libro nella libreria quando è attivo un prestito.
+
+---
+
 ### Temi
 
 ThemeSwitcher nella sidebar:
@@ -419,6 +442,15 @@ DELETE /books/{id}                  → elimina libro
 
 GET  /isbn/{code}                   → lookup metadati ISBN (autenticato)
 POST /isbn/{code}/import            → importa libro da ISBN
+
+GET    /books/{id}/loans            → storico prestiti libro
+
+GET    /loans                       → lista prestiti (propri; admin vede tutti)
+GET    /loans/active                → prestiti attivi
+POST   /loans                       → crea prestito (find-or-create borrower)
+PUT    /loans/{id}/return           → segna restituito
+GET    /loans/borrowers             → lista persone (con conteggi)
+GET    /loans/borrowers/{id}        → dettaglio persona + storico
 
 GET    /users/                      → lista utenti (admin)
 POST   /users/                      → crea utente (admin)
@@ -464,6 +496,7 @@ Documentazione interattiva: `http://server/docs`
 | 10 | Icone + PWA manifest (favicon, home screen, Unraid) | ✅ |
 | — | Fix libreria admin: owner filter sempre attivo | ✅ |
 | — | Predisposizione architettura mobile (Capacitor) | ✅ |
+| 11 | Gestione prestiti (borrower autocomplete, storico, badge) | ✅ |
 
 ---
 
