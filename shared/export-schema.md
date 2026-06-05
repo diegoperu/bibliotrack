@@ -136,6 +136,43 @@ Procedere comunque con i campi noti.
 | Versione | Data | Modifiche |
 |----------|------|-----------|
 | 1 | 2025-01 | Versione iniziale |
+| 2 | 2026-06 | Aggiunto array `loans` per BookExport; aggiunto array `borrowers` a livello root |
+
+---
+
+## Versione 2 (con prestiti)
+
+### Modifiche rispetto a v1
+
+**Header:** aggiunto campo opzionale `borrowers` (array di nomi distinti).
+
+**BookExport:** aggiunto campo opzionale `loans` (array di LoanExport).
+
+### Struttura LoanExport
+
+```json
+{
+  "borrower_name": "Mario Rossi",
+  "loaned_at": "2025-03-01T00:00:00Z",
+  "returned_at": "2025-04-15T00:00:00Z",
+  "notes": null
+}
+```
+
+I Borrower non vengono esportati come entità separate — sono derivabili
+aggregando i `borrower_name` dai loan di tutti i libri.
+
+All'import, per ogni `borrower_name` unico trovato nei loan,
+creare il Borrower corrispondente se non esiste (normalizzando il nome).
+
+### Campi LoanExport
+
+| Campo | Tipo | Obbligatorio | Note |
+|-------|------|--------------|------|
+| `borrower_name` | string | ✅ | display_name al momento del prestito |
+| `loaned_at` | string ISO 8601 | ✅ | UTC |
+| `returned_at` | string ISO 8601 \| null | ❌ | null = prestito ancora attivo |
+| `notes` | string \| null | ❌ | |
 
 ---
 

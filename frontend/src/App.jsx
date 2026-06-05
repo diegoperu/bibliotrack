@@ -6,6 +6,7 @@ import Library from './pages/Library'
 import AddBook from './pages/AddBook'
 import BookDetail from './pages/BookDetail'
 import Admin from './pages/Admin'
+import Loans from './pages/Loans'
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { isAuthenticated, user } = useAuthStore()
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="library" element={<Library />} />
           <Route path="books/:id" element={<BookDetail />} />
           <Route path="add-book" element={<AddBook />} />
+          <Route path="loans" element={<Loans />} />
           <Route
             path="admin"
             element={

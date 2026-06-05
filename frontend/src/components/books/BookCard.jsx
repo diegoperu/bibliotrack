@@ -34,6 +34,20 @@ export default function BookCard({ book }) {
             {status.label}
           </span>
         )}
+        {book.is_on_loan && (
+          <span
+            className="absolute top-1.5 right-1.5 badge"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              color: 'var(--warning)',
+              backdropFilter: 'blur(4px)',
+              fontSize: '0.6rem',
+              padding: '0.1rem 0.4rem',
+            }}
+          >
+            📤 Prestato
+          </span>
+        )}
       </div>
 
       {/* Info */}

@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, timezone
 from database import get_db
 from models.book import Book, BookStatus
+from models.loan import Loan
 from models.user import User, UserRole
-from schemas.book import BookCreate, BookUpdate, BookResponse
+from schemas.book import BookCreate, BookUpdate, BookResponse, BookDetailResponse
+from schemas.loan import LoanOut, loan_to_out
 from middleware.auth import get_current_user
 
 router = APIRouter(prefix="/books", tags=["books"])
@@ -36,6 +38,7 @@ def list_books(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     all_users: bool = Query(False),
+    with_loan_status: bool = Query(False),
 ):
     q = db.query(Book)
     # all_users=true is admin-only and used exclusively by the admin panel.
@@ -54,7 +57,22 @@ def list_books(
         q = q.filter(Book.language == language)
     sort_col = getattr(Book, sort_by if sort_by in _SORTABLE else "added_at")
     q = q.order_by(sort_col.desc() if order == "desc" else sort_col.asc())
-    return q.offset(skip).limit(limit).all()
+    books = q.offset(skip).limit(limit).all()
+
+    if not with_loan_status:
+        return books
+
+    book_ids = [b.id for b in books]
+    active_loan_book_ids = set(
+        row[0]
+        for row in db.query(Loan.book_id)
+        .filter(Loan.book_id.in_(book_ids), Loan.returned_at == None)  # noqa: E711
+        .all()
+    )
+    return [
+        BookResponse.model_validate(b).model_copy(update={"is_on_loan": b.id in active_loan_book_ids})
+        for b in books
+    ]
 
 
 @router.post("/", response_model=BookResponse, status_code=status.HTTP_201_CREATED)
@@ -70,9 +88,36 @@ def create_book(
     return book
 
 
-@router.get("/{book_id}", response_model=BookResponse)
+@router.get("/{book_id}", response_model=BookDetailResponse)
 def get_book(book_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return _get_book_or_403(book_id, db, current_user)
+    book = _get_book_or_403(book_id, db, current_user)
+    active_loan_obj = (
+        db.query(Loan)
+        .options(joinedload(Loan.book), joinedload(Loan.borrower))
+        .filter(Loan.book_id == book.id, Loan.returned_at == None)  # noqa: E711
+        .first()
+    )
+    detail = BookDetailResponse.model_validate(book)
+    if active_loan_obj:
+        detail = detail.model_copy(update={"active_loan": loan_to_out(active_loan_obj)})
+    return detail
+
+
+@router.get("/{book_id}/loans", response_model=List[LoanOut])
+def get_book_loans(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    book = _get_book_or_403(book_id, db, current_user)
+    loans = (
+        db.query(Loan)
+        .options(joinedload(Loan.book), joinedload(Loan.borrower))
+        .filter(Loan.book_id == book.id)
+        .order_by(Loan.loaned_at.desc())
+        .all()
+    )
+    return [loan_to_out(l) for l in loans]
 
 
 @router.patch("/{book_id}", response_model=BookResponse)

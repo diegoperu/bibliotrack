@@ -40,3 +40,4 @@ class Book(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     owner = relationship("User", back_populates="books")
+    loans = relationship("Loan", back_populates="book", order_by="Loan.loaned_at.desc()")

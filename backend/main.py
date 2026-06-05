@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from database import engine, Base
 from config import settings
-from routers import auth, books, users, isbn
+from routers import auth, books, users, isbn, loans
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +48,7 @@ app.include_router(auth.router)
 app.include_router(books.router)
 app.include_router(users.router)
 app.include_router(isbn.router)
+app.include_router(loans.router)
 
 
 @app.get("/health")

@@ -5,6 +5,7 @@ import ThemeSwitcher from '../ui/ThemeSwitcher'
 const NAV = [
   { to: '/library',  label: 'Libreria',       icon: '📚' },
   { to: '/add-book', label: 'Aggiungi libro',  icon: '➕' },
+  { to: '/loans',    label: 'Prestiti',        icon: '📤' },
 ]
 
 const ADMIN_NAV = [

@@ -48,13 +48,15 @@ bibliotrack/
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── user.py
-│   │   └── book.py
+│   │   ├── book.py
+│   │   └── loan.py            ← Borrower + Loan
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── auth.py
 │   │   ├── books.py
 │   │   ├── users.py
-│   │   └── isbn.py
+│   │   ├── isbn.py
+│   │   └── loans.py           ← GET/POST /loans, GET/PUT /loans/*, GET /loans/borrowers/*
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── isbn_lookup.py     ← Open Library + fallback
@@ -63,11 +65,18 @@ bibliotrack/
 │   ├── schemas/
 │   │   ├── __init__.py
 │   │   ├── user.py
-│   │   └── book.py
+│   │   ├── book.py
+│   │   └── loan.py            ← BorrowerOut, BorrowerSuggestion, LoanOut, LoanCreate, LoanReturn, BorrowerDetail, loan_to_out()
 │   ├── middleware/
 │   │   └── auth.py
 │   ├── static/
 │   │   └── covers/            ← copertine scaricate
+│   ├── tests/
+│   │   ├── conftest.py
+│   │   ├── test_auth.py
+│   │   ├── test_books.py
+│   │   ├── test_isbn.py
+│   │   └── test_loans.py      ← 18 test prestiti
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/
@@ -97,6 +106,8 @@ bibliotrack/
 │       │   │   ├── BookList.jsx
 │       │   │   ├── BookDetail.jsx
 │       │   │   └── AddBookModal.jsx
+│       │   ├── loans/
+│       │   │   └── LoanModal.jsx      ← modal presta libro + autocomplete borrower
 │       │   ├── scanner/
 │       │   │   ├── ISBNScanner.jsx   ← camera component
 │       │   │   └── ManualEntry.jsx
@@ -109,6 +120,7 @@ bibliotrack/
 │       │   ├── Login.jsx
 │       │   ├── BookDetail.jsx
 │       │   ├── AddBook.jsx
+│       │   ├── Loans.jsx              ← tab Attivi + tab Per persona
 │       │   └── Admin.jsx
 │       ├── stores/
 │       │   ├── authStore.js   ← Zustand
@@ -436,6 +448,28 @@ status: enum('read', 'reading', 'to_read', 'abandoned')
 added_at: datetime
 updated_at: datetime
 owner_id: int (FK → User)
+loans: relationship(Loan)  # derivato, non campo DB
+```
+
+### Borrower
+```python
+id: int (PK)
+name: str (lowercase+strip, unique per owner)  # usato per dedup
+display_name: str                               # come inserito dall'utente
+owner_id: int (FK → User, CASCADE)
+created_at: datetime
+# indice unico: (name, owner_id)
+```
+
+### Loan
+```python
+id: int (PK)
+book_id: int (FK → Book, CASCADE)    # eliminazione libro → elimina loan
+borrower_id: int (FK → Borrower, RESTRICT)  # non si elimina borrower con loan
+owner_id: int (FK → User, CASCADE)
+loaned_at: datetime
+returned_at: datetime (nullable)     # NULL = prestito attivo
+notes: text (nullable)
 ```
 
 ---
@@ -639,11 +673,44 @@ Note tecniche:
 - Libreria personale (`Library.jsx`) non passa `all_users` → admin vede solo i propri libri
 - 40/40 test pass
 
+### ✅ STEP 11 — Gestione Prestiti
+**Obiettivo:** Sistema completo di prestiti libri a persone
+
+Tasks:
+- [x] `backend/models/loan.py`: tabelle `borrowers` (unico per name+owner) e `loans` (CASCADE su book, RESTRICT su borrower)
+- [x] `backend/schemas/loan.py`: BorrowerOut, BorrowerSuggestion, LoanOut, LoanCreate, LoanReturn, BorrowerDetail, `loan_to_out()` helper
+- [x] `backend/schemas/book.py`: aggiunto `is_on_loan: Optional[bool]` a BookResponse, `BookDetailResponse` con `active_loan`
+- [x] `backend/routers/loans.py`: GET /loans, GET /loans/active, GET /loans/borrowers, GET /loans/borrowers/{id}, POST /loans, PUT /loans/{id}/return
+- [x] `backend/routers/books.py`: GET /books/{id} aggiornato con `active_loan`, GET /books/{id}/loans (storico), `with_loan_status` param su lista
+- [x] `backend/main.py`: registrato `loans.router`
+- [x] `backend/tests/test_loans.py`: 18 test (58/58 totali pass)
+- [x] `frontend/src/components/loans/LoanModal.jsx`: modal presta + autocomplete borrower (debounce 300ms)
+- [x] `frontend/src/pages/Loans.jsx`: tab Attivi (più vecchio prima) + tab Per persona (accordion, ordinato per attivi desc)
+- [x] `frontend/src/pages/BookDetail.jsx`: sezione prestiti — badge attivo + "Segna restituito" + storico + "Presta questo libro"
+- [x] `frontend/src/components/books/BookCard.jsx`: badge "📤 Prestato" se `book.is_on_loan`
+- [x] `frontend/src/components/books/BookList.jsx`: badge "📤 Prestato" se `book.is_on_loan`
+- [x] `frontend/src/components/layout/Sidebar.jsx`: voce "Prestiti" con icona 📤
+- [x] `frontend/src/App.jsx`: route `/loans`
+- [x] `shared/export-schema.md`: versione 2 documentata (LoanExport)
+- [x] `shared/export-schema.v2.json`: JSON Schema draft-07 (v1 invariato)
+
+Note tecniche:
+- Borrower normalizzato lowercase+strip → deduplicazione case-insensitive
+- `ondelete="CASCADE"` su book_id: eliminazione libro elimina storico prestiti (documentato nel codice)
+- `ondelete="RESTRICT"` su borrower_id: non si può eliminare Borrower con loan associati
+- Loan immutabile via API: nessun DELETE endpoint esposto
+- `GET /loans/borrowers` ritorna `BorrowerOut` (con conteggi) — usato sia da autocomplete che da tab Per persona
+- Conteggi borrower calcolati con batch query (2 query totali, non N+1)
+- `with_loan_status=true` su `GET /books`: batch subquery per `is_on_loan`, 0 N+1
+- `joinedload(Loan.book, Loan.borrower)` su tutte le query loan principali
+- `GET /loans/borrowers`: ordinato per display_name; frontend "Per persona" ri-ordina per active_loan_count desc
+- Build: 128 moduli, no errori
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** Fix libreria admin — filtro owner_id ✅
+**Ultimo step completato:** STEP 11 — Gestione Prestiti ✅
 **Stato:** Selfhosted completo e pronto per deploy. Architettura mobile predisposta.
 **Prossimi step previsti:**
 - Deploy Docker su Unraid (quando pronto)
@@ -668,6 +735,10 @@ Note tecniche:
 - Container: porta 8080, volume unico /data (db + covers), supervisor gestisce nginx+uvicorn
 - SECRET_KEY: minimo 32 caratteri, genera con `openssl rand -hex 32`
 - Export schema v1 definito in shared/export-schema.md + shared/export-schema.v1.json
+- Export schema v2 (con prestiti): shared/export-schema.v2.json — v1 immutabile
+- Prestiti: Borrower normalizzato lowercase+strip (dedup case-insensitive), Loan immutabile via API
+- `GET /books/{id}` ritorna `BookDetailResponse` con `active_loan` (null se disponibile)
+- `GET /books?with_loan_status=true` aggiunge `is_on_loan: bool` via batch subquery
 - Mobile: SQLite locale device, single-user, no auth, export/import JSON versionato
 - Mobile: opzionalmente collegabile al backend selfhosted con token utente normale
 - Mobile: NON in sviluppo — roadmap in shared/MOBILE-ROADMAP.md

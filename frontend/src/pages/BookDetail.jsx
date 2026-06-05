@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import client from '../api/client'
 import { getCoverUrl, BOOK_STATUS } from '../lib/bookUtils'
 import StarRating from '../components/ui/StarRating'
+import LoanModal from '../components/loans/LoanModal'
 
 /* ── Edit form ──────────────────────────────────────── */
 function EditForm({ form, setForm, onSave, onCancel, saving }) {
@@ -86,14 +87,29 @@ export default function BookDetail() {
   const [savingNotes, setSavingNotes] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [toast, setToast]           = useState('')
+  const [loanModal, setLoanModal]   = useState(false)
+  const [loanHistory, setLoanHistory] = useState([])
+  const [returningLoan, setReturningLoan] = useState(false)
 
-  useEffect(() => {
+  const fetchBook = useCallback(() => {
     client
       .get(`/books/${id}`)
       .then(({ data }) => { setBook(data); setNotes(data.notes || '') })
       .catch((e) => setError(e.response?.data?.detail || 'Libro non trovato'))
       .finally(() => setLoading(false))
   }, [id])
+
+  const fetchLoanHistory = useCallback(() => {
+    client
+      .get(`/books/${id}/loans`)
+      .then(({ data }) => setLoanHistory(data))
+      .catch(() => {})
+  }, [id])
+
+  useEffect(() => {
+    fetchBook()
+    fetchLoanHistory()
+  }, [fetchBook, fetchLoanHistory])
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -341,7 +357,101 @@ export default function BookDetail() {
               </p>
             </div>
           )}
+
+          {/* ── Loan section ── */}
+          <div className="card p-4">
+            <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
+              Prestito
+            </h2>
+
+            {book.active_loan ? (
+              <div
+                className="rounded-md p-3 mb-3"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--warning) 30%, transparent)',
+                }}
+              >
+                <p className="text-sm font-semibold mb-1" style={{ color: 'var(--warning)' }}>
+                  📤 In prestito
+                </p>
+                <p className="text-sm" style={{ color: 'var(--text-primary)' }}>
+                  Prestato a: <strong>{book.active_loan.borrower_display_name}</strong>
+                </p>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  Dal: {new Date(book.active_loan.loaned_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  {' '}({book.active_loan.duration_days} {book.active_loan.duration_days === 1 ? 'giorno fa' : 'giorni fa'})
+                </p>
+                {book.active_loan.notes && (
+                  <p className="text-sm mt-1" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    {book.active_loan.notes}
+                  </p>
+                )}
+                <button
+                  className="btn-secondary text-sm mt-3"
+                  disabled={returningLoan}
+                  onClick={async () => {
+                    setReturningLoan(true)
+                    try {
+                      await client.put(`/loans/${book.active_loan.id}/return`)
+                      await fetchBook()
+                      await fetchLoanHistory()
+                    } catch {
+                      showToast('Errore durante la restituzione')
+                    } finally {
+                      setReturningLoan(false)
+                    }
+                  }}
+                >
+                  {returningLoan ? '…' : '✓ Segna come restituito'}
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn-secondary text-sm"
+                onClick={() => setLoanModal(true)}
+              >
+                📤 Presta questo libro
+              </button>
+            )}
+
+            {loanHistory.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
+                  Storico prestiti
+                </p>
+                <ul className="space-y-1.5">
+                  {loanHistory.map((l) => (
+                    <li key={l.id} className="flex items-start gap-2 text-xs" style={{ color: l.is_active ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      <span>{'└'}</span>
+                      <span>
+                        <strong>{l.borrower_display_name}</strong>
+                        {' — '}
+                        {new Date(l.loaned_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        {l.returned_at
+                          ? ` → ${new Date(l.returned_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })} (${l.duration_days}gg)`
+                          : ' · In corso'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </>
+      )}
+
+      {loanModal && (
+        <LoanModal
+          bookId={book.id}
+          bookTitle={book.title}
+          onClose={() => setLoanModal(false)}
+          onSuccess={() => {
+            setLoanModal(false)
+            fetchBook()
+            fetchLoanHistory()
+          }}
+        />
       )}
 
       {/* Toast */}

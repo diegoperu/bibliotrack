@@ -29,18 +29,32 @@ export default function BookListItem({ book }) {
           <h3 className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
             {book.title}
           </h3>
-          {status && (
-            <span
-              className="badge shrink-0"
-              style={{
-                color: status.color,
-                backgroundColor: 'color-mix(in srgb,' + status.color + ' 12%, transparent)',
-                fontSize: '0.65rem',
-              }}
-            >
-              {status.label}
-            </span>
-          )}
+          <div className="flex items-center gap-1 shrink-0">
+            {book.is_on_loan && (
+              <span
+                className="badge"
+                style={{
+                  color: 'var(--warning)',
+                  backgroundColor: 'color-mix(in srgb, var(--warning) 12%, transparent)',
+                  fontSize: '0.65rem',
+                }}
+              >
+                📤 Prestato
+              </span>
+            )}
+            {status && (
+              <span
+                className="badge"
+                style={{
+                  color: status.color,
+                  backgroundColor: 'color-mix(in srgb,' + status.color + ' 12%, transparent)',
+                  fontSize: '0.65rem',
+                }}
+              >
+                {status.label}
+              </span>
+            )}
+          </div>
         </div>
 
         <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>

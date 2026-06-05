@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Any
 from datetime import datetime
 from models.book import BookStatus
+from schemas.loan import LoanOut
 
 
 class BookCreate(BaseModel):
@@ -45,5 +46,10 @@ class BookResponse(BookCreate):
     owner_id: int
     added_at: datetime
     updated_at: datetime
+    is_on_loan: Optional[bool] = None
 
     model_config = {"from_attributes": True}
+
+
+class BookDetailResponse(BookResponse):
+    active_loan: Optional[LoanOut] = None
