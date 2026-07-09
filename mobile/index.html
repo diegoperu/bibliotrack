@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="it" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>BiblioTrack</title>
+    <script>
+      try {
+        const s = JSON.parse(localStorage.getItem('bibliotrack-mobile-theme') || '{}')
+        const t = s.state?.theme || 'dark'
+        document.documentElement.setAttribute('data-theme', t)
+      } catch (_) {
+        document.documentElement.setAttribute('data-theme', 'dark')
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

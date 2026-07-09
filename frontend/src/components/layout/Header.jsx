@@ -4,6 +4,7 @@ const TITLES = {
   '/library':   'Libreria',
   '/add-book':  'Aggiungi libro',
   '/admin':     'Pannello Admin',
+  '/backup':    'Backup',
   '/books':     'Dettaglio libro',
 }
 

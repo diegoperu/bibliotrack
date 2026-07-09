@@ -1,0 +1,12 @@
+{
+  "appId": "it.diegoperu.bibliotrack",
+  "appName": "BiblioTrack",
+  "webDir": "dist",
+  "plugins": {
+    "CapacitorSQLite": {
+      "iosDatabaseLocation": "Library/CapacitorDatabase",
+      "iosIsEncryption": false,
+      "androidIsEncryption": false
+    }
+  }
+}

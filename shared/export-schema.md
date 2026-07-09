@@ -176,16 +176,19 @@ creare il Borrower corrispondente se non esiste (normalizzando il nome).
 
 ---
 
-## Implementazione selfhosted (STEP futuro)
+## Implementazione selfhosted (✅ STEP 12 — fatto)
 
-Aggiungere a `backend/routers/books.py`:
+`backend/routers/books.py`:
 
 ```
-GET  /books/export        → scarica JSON export di tutti i propri libri
-POST /books/import        → importa JSON, ritorna {imported, skipped, errors}
+GET  /books/export        → scarica ZIP (export.json schema v2 + covers/{isbn}.ext) di tutti i propri libri
+POST /books/import        → upload ZIP multipart (max 50MB), ritorna {imported, skipped, errors}
 ```
 
-Nessuna modifica al modello DB — l'export è una proiezione dei dati esistenti.
+Formato reale: **ZIP**, non solo JSON — `export.json` + cartella `covers/` con le immagini scaricate localmente,
+per un backup self-contained che funziona offline. `cover_url` resta nel JSON come fallback se l'immagine
+non è nello zip. Nessuna modifica al modello DB — l'export è una proiezione dei dati esistenti.
+Vedi `backend/schemas/export.py` e `backend/services/export_service.py`.
 
 ## Implementazione mobile (STEP MOBILE-3)
 

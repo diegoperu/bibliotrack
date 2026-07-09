@@ -1,18 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, timezone
+import io
+import zipfile
 from database import get_db
 from models.book import Book, BookStatus
 from models.loan import Loan
 from models.user import User, UserRole
 from schemas.book import BookCreate, BookUpdate, BookResponse, BookDetailResponse
 from schemas.loan import LoanOut, loan_to_out
+from schemas.export import ImportResult
+from services.export_service import build_export_zip, import_export_zip
 from middleware.auth import get_current_user
 
 router = APIRouter(prefix="/books", tags=["books"])
 
 _SORTABLE = {"title", "author", "year", "genre", "publisher", "added_at", "updated_at", "status"}
+_MAX_IMPORT_SIZE = 50 * 1024 * 1024  # 50MB — generous for a personal library export
 
 
 def _get_book_or_403(book_id: int, db: Session, user: User) -> Book:
@@ -86,6 +92,37 @@ def create_book(
     db.commit()
     db.refresh(book)
     return book
+
+
+@router.get("/export")
+def export_books(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    zip_bytes = build_export_zip(db, current_user.id)
+    filename = f"bibliotrack-export-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.zip"
+    return StreamingResponse(
+        io.BytesIO(zip_bytes),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/import", response_model=ImportResult)
+async def import_books(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    content = await file.read()
+    if len(content) > _MAX_IMPORT_SIZE:
+        raise HTTPException(status_code=413, detail="File troppo grande (max 50MB)")
+    try:
+        return await import_export_zip(db, current_user.id, content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="File non è un archivio zip valido")
 
 
 @router.get("/{book_id}", response_model=BookDetailResponse)

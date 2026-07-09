@@ -706,16 +706,100 @@ Note tecniche:
 - `GET /loans/borrowers`: ordinato per display_name; frontend "Per persona" ri-ordina per active_loan_count desc
 - Build: 128 moduli, no errori
 
+### ✅ STEP 12 — Export/Import Backend Selfhosted (ZIP)
+**Obiettivo:** Backup/portabilità libreria — endpoint indipendenti da mobile, riusabili da STEP MOBILE-5
+
+Tasks:
+- [x] `backend/schemas/export.py`: `BookExport`, `LoanExport`, `ExportBundle`, `ImportResult` (schema v2, coerente con `shared/export-schema.v2.json`)
+- [x] `backend/services/export_service.py`: `build_export_zip()` + `import_export_zip()`
+- [x] `backend/routers/books.py`: `GET /books/export` (streaming zip), `POST /books/import` (multipart upload)
+- [x] `backend/tests/test_export.py`: 8 test (66/66 totali pass)
+
+Decisioni:
+- **Formato: ZIP** (`export.json` + `covers/{isbn}.ext`), non solo URL — backup self-contained, funziona offline, non dipende da Open Library/IBS ancora online in futuro
+- `cover_url` sempre presente nel JSON come fallback (derivato da OpenLibrary se cover locale non disponibile), usato se lo zip non contiene l'immagine
+- Dedup import: stesse regole di `export-schema.md` (isbn match, altrimenti title+author case-insensitive) → skip silenzioso
+- `schema_version` sconosciuto/futuro → warning in `errors[]`, importa comunque i campi noti
+- Root-level `borrowers[]` NON incluso (derivabile dai `loans[]` dei libri, come da schema v2 — coerente con `additionalProperties: false` in `export-schema.v2.json`)
+
+Audit sicurezza (durante implementazione, non a posteriori):
+| Gravità | Problema | Fix |
+|---|---|---|
+| 🔴 ALTO | `isbn` dal JSON importato passato non validato a `download_cover()` → `covers_dir / f"{isbn}.jpg"` → **path traversal / arbitrary file write** se isbn contiene `../` | `isbn` normalizzato + validato con `is_valid_isbn()` (stesso validator di `services/isbn_lookup.py`); se non valido, trattato come `None` (libro importato comunque, senza isbn) |
+| 🟡 MEDIO | Nessun limite dimensione upload → DoS con file enorme | Cap 50MB su `POST /books/import`, HTTP 413 se superato |
+| ✅ OK | Nome file cover nello zip (`covers/{isbn}.*`) scritto su disco con `Path(cover_entry).name` | `.name` scarta sempre i componenti di directory — zip-slip non sfruttabile anche se il nome entry contenesse `../` |
+| ✅ OK | Route ordering `/books/export`, `/books/import` prima di `/books/{book_id}` | Evita che `book_id: int` intercetti erroneamente il path letterale |
+
+Files creati/modificati:
+`backend/schemas/export.py` (nuovo), `backend/services/export_service.py` (nuovo),
+`backend/routers/books.py` (route export/import + guardia dimensione),
+`backend/tests/test_export.py` (nuovo, 8 test incl. 2 di regressione sicurezza)
+
+---
+
+### ✅ STEP MOBILE-1 — Scaffold Capacitor + SQLite locale
+**Obiettivo:** Progetto Capacitor separato in `mobile/`, non tocca `backend/`/`frontend/`. Vedi `shared/MOBILE-ROADMAP.md`.
+
+Decisioni prese prima di partire:
+- Piattaforme: solo Android per ora (`npx cap add android`) — iOS rimandato (serve Mac/Xcode, non nel focus attuale)
+- Schema SQLite include già `borrowers`/`loans` (non solo `books`) — evita una migrazione futura quando arriverà la UI prestiti su mobile; export-schema v2 le prevede già
+- MOBILE-1 = solo scaffold + SQLite + UI components + inserimento manuale. Niente scanner, niente cascade ISBN (MOBILE-2), niente export/import/backup (MOBILE-3/4), niente UI prestiti (schema pronto, UI rimandata)
+
+Tasks:
+- [x] `mobile/package.json`, `vite.config.js`, `tailwind.config.js`, `postcss.config.js`, `index.html` — stessa toolchain di `frontend/` (Vite 5, React 18, Tailwind 3, Zustand 4)
+- [x] `mobile/capacitor.config.json` — appId `it.diegoperu.bibliotrack`, webDir `dist`
+- [x] `npm install` + `npx cap add android` + `npx cap sync android` — eseguiti, funzionanti (Node 26, npm 11)
+- [x] `mobile/src/db/schema.js` + `database.js` — tabelle `books`, `borrowers`, `loans` (stessa forma del modello backend, senza `owner_id`), `SQLiteConnection` singleton
+- [x] `mobile/src/stores/bookStore.js` — CRUD via SQLite (init/addBook/updateBook/deleteBook), whitelist colonne aggiornabili
+- [x] `mobile/src/stores/themeStore.js` — identico al web, storage key separata (`bibliotrack-mobile-theme`)
+- [x] `mobile/src/lib/bookUtils.js` — identico al web; `getCoverUrl` adattato (solo URL http(s) diretti, no proxy `/static/`)
+- [x] Componenti copiati verbatim (nessuna dipendenza da `api/client.js`): `StarRating`, `ThemeSwitcher`, `FilterBar`, `SortGroupBar`, `BookCard`, `BookGrid`, `BookList`
+- [x] `mobile/src/components/books/AddBookModal.jsx` — riscritto: solo inserimento manuale (no step scan/isbn-search), scrive su `bookStore.addBook()`
+- [x] `mobile/src/pages/Library.jsx`, `BookDetail.jsx` (senza sezione prestiti), `Settings.jsx` (tema + info) — riscritti su `bookStore`
+- [x] `mobile/src/components/layout/Layout.jsx` — header minimale (titolo + link impostazioni), niente sidebar/admin
+- [x] `mobile/src/App.jsx` — `HashRouter` (non `BrowserRouter`: necessario per webview Capacitor su reload)
+- [x] Build verificata: `npm run build` → 71 moduli, no errori
+
+Audit sicurezza:
+| Gravità | Problema | Fix |
+|---|---|---|
+| 🟡 BASSO | `bookStore.updateBook()` costruiva `SET col = ?` da `Object.keys(fields)` non filtrate | Whitelist `UPDATABLE_COLUMNS` — chiamanti attuali passano solo chiavi fisse, ma chiude la porta a futuri usi con chiavi non controllate |
+| ✅ OK | `npm audit`: 4 vuln (esbuild via vite, tar via `@capacitor/cli`) | Entrambe dev/build-tooling, mai in bundle prod; stesso esbuild/vite già accettato in `frontend/` — nessun nuovo rischio |
+| ✅ OK | Cover da URL utente (`cover_path`) renderizzata in `<img src>` | Non è innerHTML, nessun XSS; stesso comportamento già accettato nel form manuale web |
+| ✅ OK | SQLite locale non cifrato (`androidIsEncryption: false`) | Coerente con selfhosted (nessuna cifratura a livello campo); sandboxing per-app di Android è la protezione esistente |
+
+Non fatto (limite ambiente): build/run reale su emulatore/device — richiede Android Studio + SDK (`ANDROID_HOME`) non presenti in questo ambiente. Scaffold e `android/` generati e sincronizzati; verifica reale rimandata a quando l'utente apre il progetto in Android Studio.
+
+Files creati: intero albero `mobile/` (nuovo), nessuna modifica a `backend/` o `frontend/`.
+
+---
+
+### ✅ STEP 13 — UI Export/Import su web (Backup)
+**Obiettivo:** Esporre `GET /books/export` / `POST /books/import` (STEP 12) con una pagina web — decisione presa di farla prima di continuare col mobile (MOBILE-2 messo in coda), per dare backup reale subito e validare il contratto zip con uso vero.
+
+Tasks:
+- [x] `frontend/src/pages/Backup.jsx`: sezione Esporta (bottone → blob download, filename da `Content-Disposition`) + sezione Importa (file input zip → multipart POST, mostra imported/skipped/errors)
+- [x] `frontend/src/App.jsx`: route `/backup` (protetta, non admin-only — ogni utente esporta/importa solo i propri libri)
+- [x] `frontend/src/components/layout/Sidebar.jsx`: voce nav "Backup" con icona 💾
+- [x] `frontend/src/components/layout/Header.jsx`: titolo pagina per `/backup`
+- [x] Build verificata: 129 moduli, no errori
+- [x] Verifica end-to-end reale (non solo unit test): backend avviato su porta di test, utente/libro creati, `GET /books/export` → zip valido con header `Content-Disposition` nel formato atteso dal parsing regex di `Backup.jsx`, `POST /books/import` → stesso zip due volte → `{imported:0, skipped:1, errors:[]}` la seconda volta (dedup corretto). Dati di test rimossi a fine verifica, DB dev locale ripulito.
+
+Non verificato: il click reale in browser (nessun tool di browser automation disponibile in questo ambiente) — solo il contratto HTTP che la pagina consuma è stato validato end-to-end.
+
+Files modificati: `frontend/src/pages/Backup.jsx` (nuovo), `frontend/src/App.jsx`, `frontend/src/components/layout/Sidebar.jsx`, `frontend/src/components/layout/Header.jsx`. Nessuna modifica backend (STEP 12 già completo).
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** STEP 11 — Gestione Prestiti ✅
-**Stato:** Selfhosted completo e pronto per deploy. Architettura mobile predisposta.
+**Ultimo step completato:** STEP 13 — UI Export/Import su web (Backup) ✅
+**Stato:** Selfhosted completo con backup web funzionante (pagina + endpoint, verificati end-to-end). `mobile/` scaffoldato (STEP MOBILE-1), in pausa — MOBILE-2 in coda.
 **Prossimi step previsti:**
+- STEP MOBILE-2: scanner nativo + cascade ISBN lato client — vedi shared/MOBILE-ROADMAP.md
+- STEP MOBILE-3: export/import JSON su mobile — riusa formato di `export_service.py`, contratto già validato dalla UI web
 - Deploy Docker su Unraid (quando pronto)
 - Nuove feature selfhosted (aggiungere qui quando definite)
-- STEP MOBILE-1: sviluppo versione mobile (Capacitor) — vedi shared/MOBILE-ROADMAP.md
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker
 - Refresh token: body JSON (non query param) — breaking change rispetto a versioni precedenti
@@ -736,6 +820,8 @@ Note tecniche:
 - SECRET_KEY: minimo 32 caratteri, genera con `openssl rand -hex 32`
 - Export schema v1 definito in shared/export-schema.md + shared/export-schema.v1.json
 - Export schema v2 (con prestiti): shared/export-schema.v2.json — v1 immutabile
+- Export/import backend: `GET /books/export` (zip: export.json + covers/), `POST /books/import` (multipart, max 50MB) — filtrati per owner, no `all_users`
+- Export/import UI web: `frontend/src/pages/Backup.jsx` — nav "Backup" in Sidebar, non admin-only, ogni utente vede solo i propri
 - Prestiti: Borrower normalizzato lowercase+strip (dedup case-insensitive), Loan immutabile via API
 - `GET /books/{id}` ritorna `BookDetailResponse` con `active_loan` (null se disponibile)
 - `GET /books?with_loan_status=true` aggiunge `is_on_loan: bool` via batch subquery

@@ -1,8 +1,8 @@
 # BiblioTrack — Mobile Roadmap
 
-> Documento di riferimento per il futuro sviluppo della versione mobile (Capacitor).
-> La versione mobile NON è ancora in sviluppo.
-> Aggiorna questo file quando si inizia STEP MOBILE-1.
+> Documento di riferimento per lo sviluppo della versione mobile (Capacitor).
+> STEP MOBILE-1 (scaffold + SQLite + UI components) è completo — vedi CLAUDE.md.
+> Piattaforma: solo Android per ora. iOS rimandato (richiede Mac/Xcode).
 
 ---
 
@@ -16,15 +16,15 @@ bibliotrack/
 │   ├── MOBILE-ROADMAP.md
 │   ├── export-schema.md      ← formato export JSON versionato
 │   └── export-schema.v1.json ← JSON Schema formale v1
-└── mobile/           ← [FUTURO] Capacitor app (non esiste ancora)
+└── mobile/           ← ✅ scaffold Capacitor esistente (STEP MOBILE-1)
     ├── src/
-    │   ├── components/   ← copia/adattamento da frontend/src/components/
-    │   ├── db/           ← Capacitor SQLite locale
-    │   ├── stores/       ← Zustand senza auth
-    │   ├── export/       ← import/export JSON
-    │   └── pages/        ← Library, Settings, Backup
-    ├── android/
-    ├── ios/
+    │   ├── components/   ← copiati/adattati da frontend/src/components/
+    │   ├── db/           ← Capacitor SQLite locale (schema.js, database.js)
+    │   ├── stores/       ← Zustand senza auth (bookStore, themeStore)
+    │   ├── export/       ← [FUTURO STEP MOBILE-3] import/export JSON
+    │   └── pages/        ← Library, BookDetail, Settings (Backup: futuro)
+    ├── android/          ← ✅ aggiunto (npx cap add android)
+    ├── ios/              ← non aggiunto (fuori scope attuale)
     └── package.json
 ```
 
@@ -74,11 +74,11 @@ usa le API esistenti con un token utente normale.
 
 ## Sequenza step futuri
 
-- STEP MOBILE-1: Setup Capacitor + SQLite locale + import UI components
+- ✅ STEP MOBILE-1: Setup Capacitor + SQLite locale + import UI components — fatto
 - STEP MOBILE-2: Scanner nativo + ISBN cascade lato client
-- STEP MOBILE-3: Export/Import JSON (vedi export-schema.md)
+- STEP MOBILE-3: Export/Import JSON (vedi export-schema.md) — riusa formato di `backend/services/export_service.py`
 - STEP MOBILE-4: Cloud backup (Drive/iCloud)
-- STEP MOBILE-5: Collegamento opzionale backend selfhosted
+- STEP MOBILE-5: Collegamento opzionale backend selfhosted (endpoint `/books/export` e `/books/import` già pronti lato backend)
 
 ---
 

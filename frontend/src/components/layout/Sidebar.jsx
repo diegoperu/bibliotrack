@@ -6,6 +6,7 @@ const NAV = [
   { to: '/library',  label: 'Libreria',       icon: '📚' },
   { to: '/add-book', label: 'Aggiungi libro',  icon: '➕' },
   { to: '/loans',    label: 'Prestiti',        icon: '📤' },
+  { to: '/backup',   label: 'Backup',          icon: '💾' },
 ]
 
 const ADMIN_NAV = [
