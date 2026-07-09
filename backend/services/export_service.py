@@ -1,10 +1,13 @@
 import io
+import ipaddress
 import json
 import logging
+import socket
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -21,6 +24,29 @@ logger = logging.getLogger("bibliotrack.export")
 SOURCE = "bibliotrack-web"
 SOURCE_VERSION = "1.0.0"
 _VALID_STATUSES = {s.value for s in BookStatus}
+
+# Decompressed-size caps: the 50MB route-level cap only bounds the *compressed*
+# upload; a crafted zip can expand orders of magnitude beyond it
+_MAX_JSON_SIZE = 20 * 1024 * 1024
+_MAX_COVER_SIZE = 10 * 1024 * 1024
+
+
+def _is_safe_cover_url(url: Optional[str]) -> bool:
+    """SSRF guard for URLs coming from an uploaded export file: the server will
+    GET this URL, so it must never point inside the local network (nginx,
+    uvicorn, router admin panels, cloud metadata endpoints...)."""
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return False
+        for info in socket.getaddrinfo(parsed.hostname, None):
+            if not ipaddress.ip_address(info[4][0]).is_global:
+                return False
+        return True
+    except (ValueError, OSError):
+        return False
 
 
 def _book_cover_url(book: Book) -> Optional[str]:
@@ -151,6 +177,8 @@ async def import_export_zip(db: Session, owner_id: int, zip_bytes: bytes) -> Imp
 
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         try:
+            if zf.getinfo("export.json").file_size > _MAX_JSON_SIZE:
+                raise ValueError("export.json troppo grande (max 20MB decompresso)")
             raw = json.loads(zf.read("export.json"))
         except KeyError:
             raise ValueError("export.json non trovato nello zip")
@@ -188,13 +216,14 @@ async def import_export_zip(db: Session, owner_id: int, zip_bytes: bytes) -> Imp
 
             cover_path = None
             cover_entry = next((n for n in cover_names if isbn and n.startswith(f"covers/{isbn}.")), None)
-            if cover_entry:
+            if cover_entry and zf.getinfo(cover_entry).file_size <= _MAX_COVER_SIZE:
                 dest = settings.COVERS_DIR / Path(cover_entry).name
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_bytes(zf.read(cover_entry))
                 cover_path = f"covers/{dest.name}"
             elif isbn:
-                cover_path = await download_cover(isbn, settings.COVERS_DIR, fallback_url=book_export.cover_url)
+                fallback = book_export.cover_url if _is_safe_cover_url(book_export.cover_url) else None
+                cover_path = await download_cover(isbn, settings.COVERS_DIR, fallback_url=fallback)
 
             book = Book(
                 isbn=isbn,

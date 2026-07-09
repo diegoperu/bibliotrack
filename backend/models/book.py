@@ -40,4 +40,10 @@ class Book(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     owner = relationship("User", back_populates="books")
-    loans = relationship("Loan", back_populates="book", order_by="Loan.loaned_at.desc()")
+    # ORM-level cascade: senza, l'ORM tenta UPDATE loans SET book_id=NULL alla
+    # cancellazione del libro → NOT NULL violation (il CASCADE a livello DB non
+    # scatta perché l'ORM interviene prima)
+    loans = relationship(
+        "Loan", back_populates="book", order_by="Loan.loaned_at.desc()",
+        cascade="all, delete-orphan",
+    )

@@ -12,6 +12,9 @@ engine = create_engine(
 def _set_wal_mode(dbapi_conn, _):
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
+    # SQLite non applica i vincoli FK (ondelete CASCADE/RESTRICT dichiarati nei
+    # modelli) senza questo pragma, che è per-connessione
+    cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
 

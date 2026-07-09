@@ -189,6 +189,33 @@ def test_import_rejects_oversized_file(client, auth_headers):
     assert resp.status_code == 413
 
 
+def test_import_rejects_zip_bomb_json(client, auth_headers):
+    # export.json che dichiara >20MB decompressi (comprime a pochi KB) → 400
+    huge_json = b'{"schema_version": 2, "exported_at": "2026-01-01T00:00:00Z", "source": "bibliotrack-web", "books": [], "pad": "' + b"A" * (21 * 1024 * 1024) + b'"}'
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("export.json", huge_json)
+    resp = client.post(
+        "/books/import", files={"file": ("bomb.zip", buf.getvalue(), "application/zip")}, headers=auth_headers
+    )
+    assert resp.status_code == 400
+    assert "troppo grande" in resp.json()["detail"]
+
+
+def test_ssrf_guard_blocks_private_urls():
+    from services.export_service import _is_safe_cover_url
+
+    assert _is_safe_cover_url("http://127.0.0.1:8000/admin") is False
+    assert _is_safe_cover_url("http://localhost/x.jpg") is False
+    assert _is_safe_cover_url("http://192.168.1.1/router.jpg") is False
+    assert _is_safe_cover_url("http://10.0.0.5/x.jpg") is False
+    assert _is_safe_cover_url("http://169.254.169.254/latest/meta-data/") is False
+    assert _is_safe_cover_url("file:///etc/passwd") is False
+    assert _is_safe_cover_url("ftp://example.com/x.jpg") is False
+    assert _is_safe_cover_url(None) is False
+    assert _is_safe_cover_url("") is False
+
+
 def test_import_unknown_status_falls_back_to_to_read(client, auth_headers):
     bundle = {
         "schema_version": 2,

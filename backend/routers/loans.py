@@ -31,13 +31,14 @@ def _get_loan_or_403(loan_id: int, db: Session, user: User) -> Loan:
 
 
 def _base_loan_query(db: Session, user: User):
-    q = (
+    # Sempre filtrato per owner, anche per admin: /loans è la pagina prestiti
+    # *personale* (stessa decisione presa per GET /books/ — fix c649fa1).
+    # L'admin accede ai prestiti altrui solo via singolo libro/loan (_get_loan_or_403).
+    return (
         db.query(Loan)
         .options(joinedload(Loan.book), joinedload(Loan.borrower))
+        .filter(Loan.owner_id == user.id)
     )
-    if user.role != UserRole.admin:
-        q = q.filter(Loan.owner_id == user.id)
-    return q
 
 
 @router.get("/active", response_model=List[LoanOut])

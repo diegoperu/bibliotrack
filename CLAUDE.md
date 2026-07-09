@@ -791,9 +791,39 @@ Files modificati: `frontend/src/pages/Backup.jsx` (nuovo), `frontend/src/App.jsx
 
 ---
 
+### ✅ AUDIT SICUREZZA PROFONDO — Post STEP 13
+**Scope:** intero progetto (backend, frontend, mobile, nginx, Docker). Ogni fix verificato con test.
+
+| Gravità | Problema | Fix |
+|---|---|---|
+| 🔴 ALTO | **SSRF via import**: `cover_url` dal JSON caricato passato a `download_cover()` → il server faceva GET verso URL arbitrari (rete interna, 169.254.169.254, ecc.) e salvava la risposta come cover scaricabile → primitiva di lettura della rete interna | `_is_safe_cover_url()` in `export_service.py`: solo http/https + risoluzione DNS + reject IP non globali (privati/loopback/link-local). Residuo noto: TOCTOU DNS-rebinding tra check e fetch — accettato per app domestica |
+| 🔴 ALTO | **Delete libro con storico prestiti → 500**: `Book.loans` senza cascade ORM → `UPDATE loans SET book_id=NULL` → NOT NULL violation. Il CASCADE dichiarato nel modello non è mai scattato perché **SQLite non applica FK senza `PRAGMA foreign_keys=ON`** (mai attivato). Stessa causa: delete utente con prestiti falliva; RESTRICT su borrower mai applicato | `database.py`: `PRAGMA foreign_keys=ON` per connessione; `Book.loans`: `cascade="all, delete-orphan"`. Verificato empiricamente: delete libro → loans rimossi; delete utente → books+loans+borrowers rimossi, zero orfani |
+| 🟠 MEDIO | **Zip bomb su import**: cap 50MB solo sulla dimensione compressa; `zf.read()` senza limite sul decompresso → esaurimento RAM/disco con zip artigianale | Cap decompresso da header zip (`getinfo().file_size`, applicato da Python in lettura): 20MB per `export.json`, 10MB per cover; cover oversize → skip con fallback |
+| 🟠 MEDIO | **Admin vedeva prestiti di tutti in /loans** (pagina personale) — stessa classe del bug libreria admin già fixato (c649fa1); comportamento era pure codificato in un test | `_base_loan_query` filtra sempre per owner; admin mantiene accesso ai singoli prestiti altrui via `_get_loan_or_403` / `GET /books/{id}/loans`. Test invertito |
+| 🟠 MEDIO | **nginx `client_max_body_size 10M`** vs cap import 50MB → upload zip >10MB respinti dal proxy con 413 prima di arrivare al backend | 60M in entrambi i config (docker + deploy) |
+| 🟠 MEDIO | **`/loans` assente dal regex API in `deploy/nginx.conf`** → su deploy bare-metal tutte le chiamate loans ricevevano index.html (SPA fallback) — feature prestiti rotta | Aggiunto `loans` al location regex. (Docker non affetto: usa prefix `/api/`) |
+| 🟡 BASSO | **Header sicurezza persi su asset**: `add_header` in un location nginx cancella quelli ereditati dal server block → covers/JS/CSS/manifest serviti senza `nosniff` (il commento nel config affermava il contrario) | `X-Content-Type-Options nosniff` ripetuto nei 3 location interessati di entrambi i config |
+| 🟡 BASSO | **User enumeration via timing su login**: username inesistente → risposta ~200ms più rapida (bcrypt saltato) | Confronto con hash dummy quando l'utente non esiste (`_DUMMY_HASH` in `auth.py`) |
+
+Verificati e OK (nessuna azione): JWT `algorithms` pinnata (no alg confusion), token type check access/refresh, permessi users.py (no privilege escalation via PATCH: role/is_active bloccati per non-admin), path traversal import già mitigato (STEP 12), StaticFiles no traversal, CORS con bearer token (no cookie → CSRF non applicabile), mobile bookStore parametrizzato + whitelist colonne, entrypoint non logga password, Algolia keys pubbliche (già documentato).
+
+Accettati (invariati, app domestica): token in localStorage, no rate limiting login, no rotazione refresh token, HTTPS opzionale via certbot, `unsafe-inline`/`unsafe-eval` in CSP (richiesti da Vite/React), DNS rebinding TOCTOU su SSRF guard.
+
+Nota deploy: DB esistenti creati con FK off possono contenere righe orfane pregresse — il pragma non le valida retroattivamente, le nuove operazioni sì.
+
+Files modificati:
+`backend/database.py` (FK pragma), `backend/models/book.py` (cascade ORM),
+`backend/services/export_service.py` (SSRF guard + cap decompressi),
+`backend/routers/loans.py` (owner filter), `backend/routers/auth.py` (timing),
+`docker/nginx-internal.conf`, `deploy/nginx.conf` (body size, loans regex, nosniff),
+`backend/tests/test_loans.py` (+2 test), `backend/tests/test_export.py` (+2 test)
+Test: **69/69 pass**
+
+---
+
 ## Sessione Corrente
 
-**Ultimo step completato:** STEP 13 — UI Export/Import su web (Backup) ✅
+**Ultimo step completato:** Audit sicurezza profondo post-STEP 13 ✅ (2 fix ALTI: SSRF import, FK SQLite mai attivate)
 **Stato:** Selfhosted completo con backup web funzionante (pagina + endpoint, verificati end-to-end). `mobile/` scaffoldato (STEP MOBILE-1), in pausa — MOBILE-2 in coda.
 **Prossimi step previsti:**
 - STEP MOBILE-2: scanner nativo + cascade ISBN lato client — vedi shared/MOBILE-ROADMAP.md

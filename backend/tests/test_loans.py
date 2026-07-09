@@ -223,7 +223,9 @@ def test_user_cannot_see_other_user_loans(client, lu1_headers, lu2_headers):
     assert resp2.status_code == 403
 
 
-def test_admin_can_see_all_loans(client, lu1_headers, admin_headers):
+def test_admin_personal_loans_exclude_other_users(client, lu1_headers, admin_headers):
+    # /loans è la pagina prestiti personale: l'admin NON vede i prestiti altrui
+    # (stessa decisione del fix libreria admin per GET /books/)
     book_id = _create_book(client, lu1_headers, "Admin Visible Book")
     loan = client.post("/loans", json={"book_id": book_id, "borrower_name": "AdminSee"}, headers=lu1_headers).json()
     loan_id = loan["id"]
@@ -231,7 +233,28 @@ def test_admin_can_see_all_loans(client, lu1_headers, admin_headers):
     resp = client.get("/loans", headers=admin_headers)
     assert resp.status_code == 200
     ids = [l["id"] for l in resp.json()]
-    assert loan_id in ids
+    assert loan_id not in ids
+
+    # l'admin mantiene accesso al singolo prestito altrui (gestione via dettaglio libro)
+    resp = client.get(f"/books/{book_id}/loans", headers=admin_headers)
+    assert resp.status_code == 200
+    assert loan_id in [l["id"] for l in resp.json()]
+
+
+def test_delete_book_with_loan_history(client, lu1_headers):
+    # regressione: senza cascade ORM la DELETE falliva con IntegrityError
+    # (UPDATE loans SET book_id=NULL → NOT NULL violation)
+    book_id = _create_book(client, lu1_headers, "Deletable Loaned Book")
+    loan = client.post("/loans", json={"book_id": book_id, "borrower_name": "DelPerson"}, headers=lu1_headers).json()
+    client.put(f"/loans/{loan['id']}/return", headers=lu1_headers)
+    client.post("/loans", json={"book_id": book_id, "borrower_name": "DelPerson"}, headers=lu1_headers)
+
+    resp = client.delete(f"/books/{book_id}", headers=lu1_headers)
+    assert resp.status_code == 204
+
+    # i prestiti del libro spariscono dalla lista personale
+    resp = client.get("/loans", headers=lu1_headers)
+    assert book_id not in [l["book_id"] for l in resp.json()]
 
 
 def test_book_detail_includes_active_loan(client, lu1_headers):

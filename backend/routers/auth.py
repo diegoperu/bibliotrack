@@ -11,10 +11,16 @@ from services.auth_service import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    hash_password,
 )
 from middleware.auth import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Hash fittizio confrontato quando lo username non esiste: senza, la risposta
+# per utente inesistente è ~200ms più rapida (bcrypt saltato) e rivela quali
+# username esistono
+_DUMMY_HASH = hash_password("timing-equalizer-dummy")
 
 
 class _RefreshRequest(BaseModel):
@@ -24,7 +30,8 @@ class _RefreshRequest(BaseModel):
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    password_ok = verify_password(form_data.password, user.hashed_password if user else _DUMMY_HASH)
+    if not user or not password_ok:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
