@@ -31,6 +31,7 @@ Web app per catalogare la tua libreria personale. Mobile-first, scansione ISBN d
 - ✍️ **Inserimento manuale** come alternativa
 - 📚 **Libreria personale** con filtri, raggruppamento e ordinamento
 - 📤 **Gestione prestiti** — presta libri, traccia chi li ha, storico per persona
+- 💾 **Backup export/import** — scarica un ZIP con libri, prestiti e copertine; importalo altrove (dedup automatico)
 - 👤 **Gestione utenti** (admin / user)
 - 🎨 **4 temi**: Light · Dark · Catppuccin Light · Catppuccin Dark
 - 📱 **Responsive**: ottimizzata per smartphone, funziona su desktop
@@ -398,6 +399,23 @@ Il badge **📤 Prestato** appare sulla card del libro nella libreria quando è 
 
 ---
 
+### Backup (Export / Import)
+
+Nella sidebar: **"💾 Backup"**
+
+**Esportare:**
+1. Tap **"⬇️ Scarica backup (.zip)"**
+2. Lo ZIP contiene `export.json` (libri + prestiti, schema versionato) e le copertine scaricate localmente
+
+**Importare:**
+1. Seleziona un file ZIP esportato da BiblioTrack
+2. I libri già presenti (stesso ISBN, o stesso titolo+autore) vengono saltati automaticamente — nessuna sovrascrittura
+3. Il risultato mostra quanti libri sono stati importati/saltati ed eventuali avvisi
+
+Utile come backup manuale e come base per l'importazione nella futura versione mobile.
+
+---
+
 ### Temi
 
 ThemeSwitcher nella sidebar:
@@ -450,6 +468,9 @@ PUT    /loans/{id}/return           → segna restituito
 GET    /loans/borrowers             → lista persone (con conteggi)
 GET    /loans/borrowers/{id}        → dettaglio persona + storico
 
+GET    /books/export                → scarica ZIP (export.json + covers/) di tutti i propri libri
+POST   /books/import                → importa ZIP (multipart, max 50MB) → {imported, skipped, errors}
+
 GET    /users/                      → lista utenti (admin)
 POST   /users/                      → crea utente (admin)
 PATCH  /users/{id}                  → aggiorna utente
@@ -471,6 +492,8 @@ Documentazione interattiva: `http://server/docs`
 - **SECRET_KEY**: obbligatoria, minimo 32 caratteri. Il server non si avvia senza una chiave sicura.
 - **Headers HTTP**: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Content-Security-Policy`, `Permissions-Policy`.
 - **HTTPS**: non abilitato di default — attivare con `sudo certbot --nginx -d tuodominio.it` dopo il deploy.
+- **Import ZIP**: guard anti-SSRF sulle `cover_url` (rifiutati IP privati/loopback/link-local), limiti su dimensione compressa (50MB) e decompressa (20MB JSON / 10MB per copertina).
+- **Vincoli DB**: `PRAGMA foreign_keys=ON` attivo — cascade/restrict su prestiti applicati a livello database, non solo ORM.
 
 ---
 
@@ -495,32 +518,36 @@ Documentazione interattiva: `http://server/docs`
 | — | Fix libreria admin: owner filter sempre attivo | ✅ |
 | — | Predisposizione architettura mobile (Capacitor) | ✅ |
 | 11 | Gestione prestiti (borrower autocomplete, storico, badge) | ✅ |
+| 12 | Export/Import backend (ZIP: libri + prestiti + copertine) | ✅ |
+| 13 | UI Backup su web (export/import da sidebar) | ✅ |
+| — | Audit sicurezza profondo (SSRF import, FK SQLite, zip bomb, timing) | ✅ |
+| MOBILE-1 | Scaffold Capacitor + SQLite locale + UI components (solo Android) | ✅ |
 
 ---
 
 ## Roadmap Mobile
 
-La versione mobile (Capacitor / Android + iOS) **non è ancora in sviluppo**.  
-L'architettura è stata predisposta — i contratti di dati e le decisioni tecniche sono documentati in [`shared/`](shared/).
+La versione mobile (Capacitor, **solo Android** per ora — iOS richiede Mac/Xcode, rimandato) è in sviluppo in [`mobile/`](mobile/), progetto separato che non tocca `backend/`/`frontend/`.  
+**MOBILE-1 completato**: scaffold Capacitor + SQLite locale + componenti UI adattati (libreria, dettaglio, aggiunta manuale, temi). Non ancora buildato su device reale (serve Android Studio/SDK).
 
 ### Caratteristiche previste
 
 - **Single-user**, nessuna autenticazione
-- **SQLite locale** sul device (nessun backend richiesto)
-- **Scanner nativo** tramite plugin Capacitor
-- **Export / Import JSON** versionato per backup (Drive / iCloud)
-- **Collegamento opzionale** al backend selfhosted con token utente normale
+- **SQLite locale** sul device (nessun backend richiesto) — schema include già `borrowers`/`loans`, non solo `books`
+- **Scanner nativo** tramite plugin Capacitor (MOBILE-2)
+- **Export / Import JSON** versionato per backup (Drive / iCloud) — stesso schema del backend selfhosted (v2, vedi [`shared/export-schema.md`](shared/export-schema.md))
+- **Collegamento opzionale** al backend selfhosted con token utente normale, riusando `GET/POST /books/export|import` già esistenti
 - Stessi 4 temi CSS e componenti UI della versione web
 
-### Step futuri
+### Step
 
-| Step | Descrizione |
-|------|-------------|
-| MOBILE-1 | Setup Capacitor + SQLite locale + UI components |
-| MOBILE-2 | Scanner nativo + ISBN cascade lato client |
-| MOBILE-3 | Export / Import JSON (vedi [`shared/export-schema.md`](shared/export-schema.md)) |
-| MOBILE-4 | Cloud backup (Drive / iCloud) |
-| MOBILE-5 | Collegamento opzionale backend selfhosted |
+| Step | Descrizione | Stato |
+|------|-------------|---|
+| MOBILE-1 | Setup Capacitor (Android) + SQLite locale + UI components | ✅ |
+| MOBILE-2 | Scanner nativo + ISBN cascade lato client | 🔜 |
+| MOBILE-3 | Export / Import JSON (vedi [`shared/export-schema.md`](shared/export-schema.md)) | — |
+| MOBILE-4 | Cloud backup (Drive / iCloud) | — |
+| MOBILE-5 | Collegamento opzionale backend selfhosted | — |
 
 > Documentazione completa: [`shared/MOBILE-ROADMAP.md`](shared/MOBILE-ROADMAP.md)
 

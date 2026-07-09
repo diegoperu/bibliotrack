@@ -14,8 +14,9 @@ bibliotrack/
 ├── frontend/         ← React web selfhosted (invariato)
 ├── shared/           ← contratti e documentazione condivisa (questo file)
 │   ├── MOBILE-ROADMAP.md
-│   ├── export-schema.md      ← formato export JSON versionato
-│   └── export-schema.v1.json ← JSON Schema formale v1
+│   ├── export-schema.md      ← formato export JSON versionato (v1 + v2 con prestiti)
+│   ├── export-schema.v1.json ← JSON Schema formale v1
+│   └── export-schema.v2.json ← JSON Schema formale v2
 └── mobile/           ← ✅ scaffold Capacitor esistente (STEP MOBILE-1)
     ├── src/
     │   ├── components/   ← copiati/adattati da frontend/src/components/
@@ -39,14 +40,22 @@ bibliotrack/
 | Multi-user permissions | Idem |
 | `/auth/*` endpoints | Non chiamati da mobile standalone |
 
-## Cosa viene portato su mobile (STEP MOBILE-1)
+## Cosa è stato portato su mobile (✅ STEP MOBILE-1)
 
-- Tutti i componenti UI: BookCard, BookGrid, BookList, BookDetail, FilterBar,
-  SortGroupBar, ThemeSwitcher, AddBookModal (senza campo owner)
-- ISBNScanner.jsx → sostituito con NativeScanner.jsx (Capacitor barcode plugin)
-- Cascade ISBN lookup → rieseguito lato client JS (stesse API, no backend)
-- 4 temi CSS → identici, stesso sistema CSS variables
-- Zustand stores → themeStore identico; bookStore riscritto per SQLite locale
+- Componenti UI copiati/adattati: BookCard, BookGrid, BookList, FilterBar,
+  SortGroupBar, ThemeSwitcher, StarRating (nessuna dipendenza da `api/client.js`)
+- BookDetail e AddBookModal riscritti su `bookStore` (SQLite) — AddBookModal
+  solo inserimento manuale per ora (nessuno step scan/isbn-search)
+- 4 temi CSS → identici, stesso sistema CSS variables (chiave storage separata)
+- Zustand: themeStore identico; bookStore nuovo, CRUD via SQLite locale
+- Layout minimale (header + link impostazioni), niente sidebar/admin
+- `HashRouter` invece di `BrowserRouter` (necessario per webview Capacitor)
+
+## Cosa manca ancora (STEP MOBILE-2)
+
+- ISBNScanner.jsx → da sostituire con scanner nativo (Capacitor barcode plugin)
+- Cascade ISBN lookup → da rieseguire lato client JS (stesse API, no backend)
+- UI prestiti (schema DB `borrowers`/`loans` già pronto da MOBILE-1, manca la UI)
 
 ## Collegamento opzionale al backend selfhosted
 
@@ -84,11 +93,11 @@ usa le API esistenti con un token utente normale.
 
 ## Note per Claude Code (sessione futura)
 
-Quando si inizia STEP MOBILE-1:
-1. Leggi CLAUDE.md (stato selfhosted)
-2. Leggi questo file (architettura mobile)
-3. Leggi shared/export-schema.md (formato dati)
-4. NON modificare nulla in backend/ o frontend/
-5. Crea mobile/ come progetto Capacitor separato
-6. I componenti UI vengono copiati da frontend/src/components/
-   e adattati (rimozione dipendenze da api/client.js)
+Quando si inizia STEP MOBILE-2 (scanner nativo):
+1. Leggi CLAUDE.md (stato selfhosted + storico STEP MOBILE-1)
+2. Leggi questo file (architettura mobile, sezione "Cosa manca ancora")
+3. Leggi shared/export-schema.md (formato dati, per MOBILE-3 successivo)
+4. NON modificare nulla in backend/ o frontend/ — solo mobile/
+5. `mobile/` esiste già (Capacitor 6, Android, SQLite) — non ripartire da zero
+6. Componenti UI già copiati in mobile/src/components/ — riusa quelli,
+   non ricopiare da frontend/
