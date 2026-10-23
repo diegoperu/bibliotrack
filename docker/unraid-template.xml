@@ -137,4 +137,13 @@
     Display="advanced"
     Required="false"
     Mask="false">admin@bibliotrack.local</Config>
+  <Config
+    Name="FORWARDED_ALLOW_IPS"
+    Target="FORWARDED_ALLOW_IPS"
+    Default="127.0.0.1"
+    Description="Proxy fidati per X-Forwarded-For (es. 127.0.0.1,IP_DI_NGINX_PROXY_MANAGER). Necessario dietro reverse proxy: senza, il rate limiting del login vede un solo IP per tutti i client. MAI mettere reti da cui arrivano client non fidati."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">127.0.0.1</Config>
 </Container>

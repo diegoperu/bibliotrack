@@ -21,6 +21,9 @@ services:
       # Token expiry
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       REFRESH_TOKEN_EXPIRE_DAYS:   ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+      # Reverse proxy fidati (letti da uvicorn): aggiungi l'IP del proxy esterno,
+      # altrimenti il rate limiting del login vede un solo IP per tutti i client
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
       interval: 30s

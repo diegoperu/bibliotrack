@@ -61,7 +61,8 @@ bibliotrack/
 │   │   ├── __init__.py
 │   │   ├── isbn_lookup.py     ← Open Library + fallback
 │   │   ├── cover_download.py
-│   │   └── auth_service.py
+│   │   ├── auth_service.py
+│   │   └── login_limiter.py   ← rate limiting login/change-password (in memoria)
 │   ├── schemas/
 │   │   ├── __init__.py
 │   │   ├── user.py
@@ -76,7 +77,8 @@ bibliotrack/
 │   │   ├── test_auth.py
 │   │   ├── test_books.py
 │   │   ├── test_isbn.py
-│   │   └── test_loans.py      ← 18 test prestiti
+│   │   ├── test_loans.py      ← 18 test prestiti
+│   │   └── test_login_limiter.py ← 16 test rate limiting
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/
@@ -396,7 +398,7 @@ Vulnerabilità trovate e corrette:
 
 Accettabili (non corretti — app domestica):
 - Token in `localStorage` (XSS vector teorico; fix richiederebbe httpOnly cookies)
-- No rate limiting su `/auth/login` (brute force; richiederebbe Redis)
+- No rate limiting su `/auth/login` (brute force; richiederebbe Redis) — **superato da STEP 14 (2026-10-23)**, in memoria senza Redis
 - No HTTPS di default (documentato — attivare con certbot)
 
 Files modificati:
@@ -821,14 +823,69 @@ Test: **69/69 pass**
 
 ---
 
+### 🔍 CHECK CVE — 2026-10-23
+**Scope:** dipendenze Python (backend), npm (frontend, mobile), immagini base Docker. Fonti: `npm audit` sui lockfile, OSV.dev (`querybatch`) sulle versioni Python installate localmente, endoflife.date. Nessuna modifica al codice — solo report; decisioni in `DOMANDE.md` D1–D7.
+
+| Gravità nel contesto | Componente | CVE / advisory | Raggiungibile? | Fix |
+|---|---|---|---|---|
+| 🟠 MEDIO | starlette 1.2.0 + python-multipart 0.0.29 | CVE-2026-54283 (limiti form urlencoded ignorati), CVE-2026-53540/53539/53538/53537 | **Sì**, non autenticato: `/auth/login` usa `OAuth2PasswordRequestForm` (urlencoded). Mitigato in parte da nginx `client_max_body_size 60M` | fastapi 0.161.1 (starlette 1.9.0), multipart 0.0.32 — D2 |
+| 🟠 MEDIO | certifi 2026.5.20 | GHSA-6q48-6c7w-9gw2 (root emSign con intermedie compromesse) | Sì: fetch in uscita (ISBN, copertine, SSRF guard non c'entra) | 2026.10.19 — D2 |
+| 🟠 MEDIO (solo dev) | vite 5.4.21 / esbuild 0.21.5 | GHSA-fx2h-pf6j-xcff (fs.deny bypass Windows), GHSA-67mh-4wv8-2f99, launch-editor | Sì su macchina dev: `host: true` espone dev server in LAN. Mai in produzione | Vite 8 (major) o `host` localhost — D5 |
+| 🟡 BASSO (oggi) / 🔴 CRITICO (a rilascio) | @capacitor/android 6.2.1 | CVE-2026-103922 | No: nessun APK distribuito | 6.2.2 — D6 |
+| 🟡 BASSO | python-jose 3.5.0 (+ ecdsa, pyasn1, rsa) | CVE-2024-33663/CVE-2026-85394, CVE-2024-23342, CVE-2026-59884/5/6 | No: HS256 simmetrico, `algorithms` pinnato, nessuna chiave asimmetrica/ASN.1 | nessun fix jose/ecdsa → PyJWT — D3 |
+| 🟡 BASSO | axios 1.16.1 (bundle) | ~20 GHSA (proto-pollution gadget, Node adapter, HTTP/2, proxy, ReDoS) | Quasi no: in browser usa XHR; nessuna sorgente di prototype pollution nota | 1.20.0 — D4 |
+| 🟡 BASSO | react-router-dom 6.30.3 (bundle) | CVE-2026-53668, GHSA-2j2x/-wrjc/-337j | No: navigate solo verso path costanti/ID numerici, no SSR | 6.30.6 (2 advisory solo v7) — D4 |
+| 🟡 BASSO | anyio 4.13.0, urllib3 2.7.0, cryptography 48.0.0, pydantic-settings 2.14.1 | CVE-2026-63374, CVE-2026-97687/8/9, OpenSSL wheel + CVE-2026-69247/8/9, CVE-2026-58203 | No/marginale: no TLSStream diretto, urllib3 solo via requests (non usato dall'app), no PKCS#7/X.509, no `secrets_dir` | D2 |
+| 🟡 BASSO | Build tooling (tailwind 3/braces/micromatch, postcss, browserslist, nanoid, sharp via quagga2, tar/xmldom via @capacitor/cli) | vari DoS/path traversal | No: solo build, input fidati; sharp non entra nel bundle browser | `npm audit fix` non-breaking — D4/D6 |
+| 🟡 BASSO | `node:20-alpine` (build stage) | EOL 2026-04-30 | Solo build | `node:22-alpine` — D7 |
+
+Problemi strutturali emersi:
+- `backend/requirements.txt` con `>=` → nessun lockfile Python; locale e Docker hanno versioni diverse (D1)
+- Pacchetti OS dell'immagine Docker non scansionati (Docker/trivy assenti in questo ambiente) (D7)
+
+Nessuna vulnerabilità critica/alta raggiungibile in produzione.
+
+**Correzione 2026-10-23 (info utente):** l'istanza è **già online su internet** con dominio proprio, protetta solo dal login dell'app (Authelia previsto ma non ancora operativo). Conseguenze:
+- DoS non autenticato su `/auth/login` (starlette/multipart) è raggiungibile da internet → D2 diventa prioritario
+- I rischi "accettati per app domestica" (no rate limiting login, token in localStorage, no rotazione refresh) vanno rivalutati per esposizione pubblica → D8
+- Versioni effettive nel container sconosciute (dipendono dalla data del build, `>=`) → D9
+- Hostname pubblico volutamente NON scritto in questo file (repo pubblico su GitHub)
+- **Produzione (D9, `pip freeze` container `BiblioTrack`, immagine buildata 2026-07-09):** starlette 1.3.1 e python-multipart 0.0.32 già fixati → DoS login NON presente. Vuln residue: certifi 2026.6.17 (emSign, fix 2026.10.19), anyio 4.14.1 (CVE-2026-63349/64847/63374, non raggiungibili: no `run_process`, no TLSStream diretto), cryptography 49.0.0 (CVE-2026-69247 PKCS#7, non usato), python-jose/ecdsa (non sfruttabili con HS256). Frontend: lockfile invariato dal 2026-05-29 → bundle con axios 1.16.1 / react-router 6.30.3 (basso). `pytest` installato nell'immagine runtime (dipendenza dev in produzione). Pacchetti OS immagine non scansionati. → Redeploy urgente non necessario; rischio principale = D8 (brute force login)
+- TLS: terminato da Nginx Proxy Manager con redirect HTTPS + HSTS (D10). Catena: NPM → nginx interno container :8080 → uvicorn :8000. Immagine in uso `bibliotrack:latest` buildata localmente sull'Unraid (id `3141151a1eae`), non da ghcr.io
+
+---
+
+### ✅ STEP 14 — Rate limiting login (D8)
+**Obiettivo:** proteggere il login esposto su internet da brute force finché Authelia non è operativo (e anche dopo, come difesa in profondità).
+
+Decisioni (2026-10-23, DOMANDE.md D8): limiter interno senza nuove dipendenze; per IP 10 fallimenti/15 min, per username 5/15 min (anche username inesistenti → nessuna enumeration), blocco 15 min, risposta 429 + `Retry-After`; esteso a change-password (5/15 min per user id).
+
+Implementazione:
+- `services/login_limiter.py`: `FailureLimiter` (finestra mobile, blocco temporaneo, lock per threadpool, max 10k chiavi con eviction prima delle scadute poi LRU, chiavi troncate a 128 char). Stato in memoria: valido solo con `--workers 1` (attuale)
+- `/auth/login`: controllo blocco PRIMA di bcrypt; fallimento → conta IP e username; successo → azzera solo username (non IP); log `login_blocked`/`login_failed` con solo IP (`%r`, niente username)
+- `change-password`: stesso schema, chiave = user id
+- IP client: da uvicorn (`proxy_headers` attivo di default) + env `FORWARDED_ALLOW_IPS` (nativa uvicorn, supporta CIDR). Verificato col middleware reale: XFF falsificato dal client ignorato. Aggiunta a `docker/unraid-template.xml`, `docker-compose.yml`, guida in `DOCKER-UNRAID.md`
+
+Bug trovato e corretto nello stesso step: bcrypt 5 solleva `ValueError` per password > 72 byte → `/auth/login` dava 500 (non autenticato) e il tentativo sfuggiva al conteggio. `verify_password` ora ritorna False oltre 72 byte; `_validate_password` rifiuta > 72 byte (422 invece di 500 su create/change/reset).
+
+Test: **85/85 pass** (+16: 8 unit limiter con clock finto, 8 integrazione login/change-password/72 byte).
+
+Residui noti: stato perso al riavvio container (il blocco riparte da zero); un attaccante può tenere bloccato un account noto a cicli di 15 min (accettato, D8); se `FORWARDED_ALLOW_IPS` non è impostato dietro NPM, il limite IP diventa globale → D11.
+
+Deploy (D11, 2026-10-23): NPM arriva dal gateway docker0 `172.17.0.1` → sul container `FORWARDED_ALLOW_IPS=127.0.0.1,172.17.0.1`. Pre-deploy: suite eseguita anche con le ultime versioni PyPI (quelle che il rebuild installerà con `>=`: fastapi 0.161.1, starlette 1.9.0, SQLAlchemy 2.1.6, uvicorn 0.54.0, certifi 2026.10.19) → 85/85 pass (Python 3.14 locale; container usa 3.11).
+
+Files: `backend/services/login_limiter.py` (nuovo), `backend/routers/auth.py`, `backend/routers/users.py`, `backend/services/auth_service.py`, `backend/schemas/user.py`, `backend/tests/conftest.py` (fixture reset limiter), `backend/tests/test_login_limiter.py` (nuovo), `docker/unraid-template.xml`, `docker-compose.yml`, `DOCKER-UNRAID.md`
+
+---
+
 ## Sessione Corrente
 
-**Ultimo step completato:** Audit sicurezza profondo post-STEP 13 ✅ (2 fix ALTI: SSRF import, FK SQLite mai attivate)
+**Ultimo step completato:** STEP 14 — rate limiting login ✅ (85/85 test, NON ancora deployato: serve D11 + rebuild). Precedente: check CVE 2026-10-23 (decisioni D1–D7 aperte)
 **Stato:** Selfhosted completo con backup web funzionante (pagina + endpoint, verificati end-to-end). `mobile/` scaffoldato (STEP MOBILE-1), in pausa — MOBILE-2 in coda.
 **Prossimi step previsti:**
 - STEP MOBILE-2: scanner nativo + cascade ISBN lato client — vedi shared/MOBILE-ROADMAP.md
 - STEP MOBILE-3: export/import JSON su mobile — riusa formato di `export_service.py`, contratto già validato dalla UI web
-- Deploy Docker su Unraid (quando pronto)
+- Deploy Docker: GIÀ online su internet con dominio proprio (login app; Authelia non ancora operativo) — vedi CHECK CVE 2026-10-23
 - Nuove feature selfhosted (aggiungere qui quando definite)
 **Note tecniche:**
 - `/auth/register` rimosso — creazione utenti solo via admin panel o entrypoint Docker

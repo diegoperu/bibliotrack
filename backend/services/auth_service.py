@@ -5,8 +5,17 @@ from typing import Optional
 from config import settings
 
 
+# bcrypt >= 5 solleva ValueError oltre 72 byte invece di troncare
+BCRYPT_MAX_BYTES = 72
+
+
 def verify_password(plain: str, hashed: str) -> bool:
-    return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    encoded = plain.encode("utf-8")
+    # Nessuna password salvata può superare il limite: è un fallimento normale
+    # (contato dal rate limiter), non un 500
+    if len(encoded) > BCRYPT_MAX_BYTES:
+        return False
+    return _bcrypt.checkpw(encoded, hashed.encode("utf-8"))
 
 
 def hash_password(password: str) -> str:

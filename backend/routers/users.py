@@ -15,6 +15,7 @@ class _AdminPasswordReset(_BaseModel):
     def _pw(cls, v: str) -> str:
         return _validate_password(v)
 from services.auth_service import hash_password, verify_password
+from services.login_limiter import change_password_limiter
 from middleware.auth import get_current_user, require_admin
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -83,8 +84,19 @@ def change_password(
 ):
     if current_user.id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
+    # Un token rubato non deve permettere di indovinare la password attuale
+    key = str(current_user.id)
+    wait = change_password_limiter.retry_after(key)
+    if wait:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed attempts, retry later",
+            headers={"Retry-After": str(wait)},
+        )
     if not verify_password(data.current_password, current_user.hashed_password):
+        change_password_limiter.record_failure(key)
         raise HTTPException(status_code=400, detail="Wrong current password")
+    change_password_limiter.reset(key)
     current_user.hashed_password = hash_password(data.new_password)
     db.commit()
 

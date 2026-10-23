@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from database import Base, get_db
 from models.user import User, UserRole
 from services.auth_service import hash_password
+from services.login_limiter import reset_all as _reset_limiters
 from main import app
 
 _TEST_DB = os.path.join(os.path.dirname(__file__), "test.db")
@@ -47,6 +48,15 @@ def _override_get_db():
 
 
 app.dependency_overrides[get_db] = _override_get_db
+
+
+@pytest.fixture(autouse=True)
+def _clean_login_limiters():
+    # I limiter sono globali di processo: senza reset i login falliti di un
+    # test bloccherebbero i login dei test successivi (stesso IP "testclient")
+    _reset_limiters()
+    yield
+    _reset_limiters()
 
 
 @pytest.fixture(scope="session")

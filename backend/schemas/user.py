@@ -4,11 +4,15 @@ from datetime import datetime
 from models.user import UserRole
 
 _MIN_PASSWORD_LEN = 8
+# Limite di bcrypt: oltre, hash_password solleverebbe ValueError → 500
+_MAX_PASSWORD_BYTES = 72
 
 
 def _validate_password(v: str) -> str:
     if len(v) < _MIN_PASSWORD_LEN:
         raise ValueError(f"Password must be at least {_MIN_PASSWORD_LEN} characters")
+    if len(v.encode("utf-8")) > _MAX_PASSWORD_BYTES:
+        raise ValueError(f"Password must be at most {_MAX_PASSWORD_BYTES} bytes")
     return v
 
 

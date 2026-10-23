@@ -192,6 +192,17 @@ Se usi NPM (raccomandato per HTTPS):
    CORS_ORIGINS=["https://libri.tuodominio.it"]
    ```
 
+4. **Rate limiting del login — IP reale del client.** Il login blocca un IP dopo 10 tentativi falliti in 15 minuti. Dietro NPM, il container vede come mittente l'IP di NPM: senza configurazione tutti i client condividerebbero lo stesso contatore (10 errori di chiunque bloccherebbero il login a tutti).
+   - Trova l'IP con cui NPM arriva al container (primo campo delle righe di log):
+     ```
+     docker logs BiblioTrack 2>&1 | grep '/api/' | tail -3
+     ```
+   - Imposta la variabile del container (lista separata da virgole, `127.0.0.1` va mantenuto):
+     ```
+     FORWARDED_ALLOW_IPS=127.0.0.1,<IP_DI_NPM>
+     ```
+   - Metti solo l'IP del proxy. Ogni IP elencato può dichiarare un IP client arbitrario via `X-Forwarded-For`: un client non fidato in lista può aggirare il limite.
+
 ### Accesso solo LAN (senza dominio)
 
 Accedi tramite: `http://IP-UNRAID:8080`
