@@ -54,9 +54,9 @@ l'entrypoint.sh sovrascrive con `/data/covers` via env var.
 
 ### 8.3 — Verifica CORS per Docker
 
-In `backend/config.py`, `CORS_ORIGINS` deve accettare `["*"]` quando il frontend
-è servito dallo stesso nginx del container (stesso origin). Verificare che il parsing
-JSON funzioni con `["*"]`.
+Con il frontend servito dallo stesso nginx del container (stessa origine) CORS non
+serve e `CORS_ORIGINS` non va impostata. Il formato, se mai servisse, è una lista
+separata da virgole (`https://a.it,https://b.it`), non JSON.
 
 ### 8.4 — Build test locale
 

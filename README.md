@@ -231,7 +231,8 @@ cp backend/.env.example .env
 # Edita .env: imposta SECRET_KEY, ADMIN_PASSWORD
 
 # Avvia
-SECRET_KEY=$(openssl rand -hex 32) ADMIN_PASSWORD=changeme docker-compose up -d
+SECRET_KEY=$(openssl rand -hex 32) ADMIN_PASSWORD='<password-lunga-e-unica>' docker-compose up -d
+# Senza queste due variabili docker-compose si rifiuta di partire (nessun valore di default)
 
 # Verifica
 curl http://localhost:8080/api/health

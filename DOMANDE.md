@@ -103,19 +103,19 @@
 **Risposta utente**: (2026-10-23) dai log del container NPM arriva da `172.17.0.1` (gateway bridge docker0, accesso via porta pubblicata sull'host) → `FORWARDED_ALLOW_IPS=127.0.0.1,172.17.0.1`. Residuo: qualunque processo/connessione che entra dal gateway (host Unraid stesso, hairpin NAT) è fidato e può dichiarare un IP arbitrario — accettato (host fidato); il limite per username resta comunque attivo.
 
 ### D12 — Credenziale admin di default in `docker-compose.yml`
-**Stato**: APERTA
+**Stato**: RISPOSTA
 **Bloccante**: no
 **Domanda**: `docker-compose.yml` ha `ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme123}` (e `SECRET_KEY` di default). Togliamo i default così il compose fallisce se non impostati?
 **Perché conta**: viola la regola "nessuna credenziale di default". Non tocca il tuo deploy Unraid (template senza default), ma chi usa il compose senza `.env` ottiene admin/changeme123.
 **Opzioni**: A) `${ADMIN_PASSWORD:?imposta ADMIN_PASSWORD}` (errore esplicito) B) lasciare (solo test locale)
 **Suggerimento**: A.
-**Risposta utente**:
+**Risposta utente**: (2026-10-23) A — `${VAR:?messaggio}` per SECRET_KEY e ADMIN_PASSWORD nel compose (errore esplicito se mancano). Fatto in STEP 18.
 
 ### D13 — Formato `CORS_ORIGINS` errato in `DOCKER-UNRAID.md`
-**Stato**: APERTA
+**Stato**: RISPOSTA
 **Bloccante**: no
 **Domanda**: La guida indica `CORS_ORIGINS=["https://…"]` ma `config.py` vuole una lista separata da virgole: il valore diventa un'origine non valida. Correggiamo la guida?
 **Perché conta**: con deploy same-origin (frontend e API sullo stesso dominio) CORS non serve, quindi oggi nessun effetto; ma la guida è sbagliata.
 **Opzioni**: A) correggere in `CORS_ORIGINS=https://libri.tuodominio.it` B) togliere il passo (non necessario same-origin)
 **Suggerimento**: B — meno configurazione inutile.
-**Risposta utente**:
+**Risposta utente**: (2026-10-23) B — passo CORS tolto da DOCKER-UNRAID.md (same-origin, non serve). Fatto in STEP 18; corretta anche la nota errata in DOCKER-CLAUDECODE.md §8.3.

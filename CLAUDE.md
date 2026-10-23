@@ -916,11 +916,17 @@ Files: `backend/services/login_limiter.py` (nuovo), `backend/routers/auth.py`, `
 
 Files: `backend/services/auth_service.py`, `backend/requirements.in`, `backend/requirements.txt`, `backend/requirements-dev.txt`, `backend/tests/test_tokens.py` (nuovo), `README.md`
 
+### ✅ STEP 18 — D12/D13: default insicuri nel compose, guida CORS
+- **D12:** `docker-compose.yml` non ha più default per `SECRET_KEY` (il vecchio `change-me-set-SECRET_KEY-env-var` era lungo 36 caratteri → superava il validator ≥ 32 ed era una chiave nota) né per `ADMIN_PASSWORD` (`changeme123`): `${VAR:?msg}` → compose rifiuta di partire se mancano. Esempio in `README.md` senza password debole. Il deploy Unraid non cambia (template senza default)
+- **D13 (B):** tolto il passo `CORS_ORIGINS` da `DOCKER-UNRAID.md` (same-origin, non serve; il formato indicato era comunque errato). Corretta la nota analoga in `DOCKER-CLAUDECODE.md` §8.3
+- Nota: `ADMIN_PASSWORD` nel compose ora è obbligatoria anche dopo il primo avvio (l'entrypoint la usa solo a DB vuoto); chi non vuole tenerla in `.env` può passare un valore qualsiasi dopo la creazione dell'admin
+- Nessun codice applicativo toccato; test non rieseguiti (solo config/doc)
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** STEP 17 — PyJWT (D3) ✅ (93/93 test) deployato 2026-10-23: `pip list` nel container mostra solo PyJWT 2.15.1, niente jose. STEP 14–16 in produzione e verificati (trivy pulito, login, scanner). Aperte: D12, D13
+**Ultimo step completato:** STEP 18 — D12/D13 ✅ (commit locale). Tutte le domande DOMANDE.md D1–D13 risposte. STEP 14–17 in produzione e verificati. Prossimo: MOBILE-2 (con Capacitor 8) o nuove feature
 **Stato:** Selfhosted completo con backup web funzionante (pagina + endpoint, verificati end-to-end). `mobile/` scaffoldato (STEP MOBILE-1), in pausa — MOBILE-2 in coda.
 **Prossimi step previsti:**
 - STEP MOBILE-2: scanner nativo + cascade ISBN lato client — vedi shared/MOBILE-ROADMAP.md

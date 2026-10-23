@@ -187,12 +187,9 @@ Se usi NPM (raccomandato per HTTPS):
    - Forward Port: `8080`
    - Abilita SSL con Let's Encrypt
 
-3. Aggiorna la variabile d'ambiente del container:
-   ```
-   CORS_ORIGINS=["https://libri.tuodominio.it"]
-   ```
+   `CORS_ORIGINS` non serve: frontend e API sono serviti dallo stesso dominio (stessa origine).
 
-4. **Rate limiting del login — IP reale del client.** Il login blocca un IP dopo 10 tentativi falliti in 15 minuti. Dietro NPM, il container vede come mittente l'IP di NPM: senza configurazione tutti i client condividerebbero lo stesso contatore (10 errori di chiunque bloccherebbero il login a tutti).
+3. **Rate limiting del login — IP reale del client.** Il login blocca un IP dopo 10 tentativi falliti in 15 minuti. Dietro NPM, il container vede come mittente l'IP di NPM: senza configurazione tutti i client condividerebbero lo stesso contatore (10 errori di chiunque bloccherebbero il login a tutti).
    - Trova l'IP con cui NPM arriva al container (primo campo delle righe di log):
      ```
      docker logs BiblioTrack 2>&1 | grep '/api/' | tail -3

@@ -13,11 +13,11 @@ services:
       - ./data:/data
     environment:
       # OBBLIGATORIO: genera con `openssl rand -hex 32`
-      SECRET_KEY: ${SECRET_KEY:-change-me-set-SECRET_KEY-env-var}
+      SECRET_KEY: ${SECRET_KEY:?imposta SECRET_KEY (openssl rand -hex 32) in .env o nell'ambiente}
       # Utente admin creato al primo avvio (se DB non esiste)
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_EMAIL:    ${ADMIN_EMAIL:-admin@bibliotrack.local}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme123}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?imposta ADMIN_PASSWORD in .env o nell'ambiente}
       # Token expiry
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       REFRESH_TOKEN_EXPIRE_DAYS:   ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
