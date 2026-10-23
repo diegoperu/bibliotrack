@@ -894,11 +894,20 @@ Files: `backend/services/login_limiter.py` (nuovo), `backend/routers/auth.py`, `
 - Rigenerare il lock: comando in testa a `requirements.in`. `deploy/setup.sh` usa lo stesso file (pip entra in hash-checking mode da solo); il lock è per cp311/Linux → su Python diverso può fallire
 - python-jose/ecdsa restano (CVE non sfruttabili, vedi D3 → PyJWT, step separato con Opus)
 
+### ✅ STEP 16 — D4/D5/D6/D7: frontend, Vite, Capacitor, Docker
+**Obiettivo:** chiudere i fix del check CVE 2026-10-23 che non richiedono un major.
+
+- **D4 frontend:** axios 1.16.1→1.20.0, react-router-dom 6.30.3→6.30.6, postcss→8.5.31, `npm audit fix` (follow-redirects, form-data, nanoid, browserslist, source-map-js, quagga2 1.13.0/sharp). Build 132 moduli ok. Residuo: tailwind 3 (braces/chokidar), vite 5 + esbuild (solo dev), react-router (2 advisory solo v7, non applicabili: no SSR, no redirect dinamici) → tutti richiedono major (Tailwind 4, Vite 8, React Router 7), rimandati
+- **D5:** `host: true` rimosso da `frontend/vite.config.js` e `mobile/vite.config.js` → dev server solo localhost; LAN con `npm run dev -- --host`
+- **D6 mobile:** `@capacitor/core|android|cli` 6.2.1→6.2.2 (CVE-2026-103922 critica chiusa), react-router-dom/postcss come D4, `cap sync android` ok. Residuo: `tar` via `@capacitor/cli` (fix solo CLI 8.x; tooling locale che estrae solo template ufficiali) → Capacitor 8 con MOBILE-2
+- **D7 Docker:** `node:20-alpine`(EOL) → `node:22-alpine`; entrambe le immagini base fissate per digest (letti dal registry il 2026-10-23); `npm ci` verificato da lockfile pulito. Procedura di aggiornamento digest + scan `trivy` in `DOCKER-UNRAID.md`. Pacchetti OS dell'immagine ANCORA non scansionati (Docker assente in questo ambiente) → da fare sull'Unraid dopo il rebuild
+- Non verificato: scanner ISBN con quagga2 1.13.0 in browser reale (nessuna browser automation); controllare dopo il deploy
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** STEP 14 — rate limiting login ✅ (85/85 test, NON ancora deployato: serve D11 + rebuild). Precedente: check CVE 2026-10-23 (decisioni D1–D7 aperte)
+**Ultimo step completato:** STEP 16 — upgrade dipendenze/Docker da check CVE ✅ (commit locali, NON ancora pushati né deployati). Prossimo: D3 PyJWT con Opus; poi D12/D13. STEP 14 (rate limit login) già in produzione
 **Stato:** Selfhosted completo con backup web funzionante (pagina + endpoint, verificati end-to-end). `mobile/` scaffoldato (STEP MOBILE-1), in pausa — MOBILE-2 in coda.
 **Prossimi step previsti:**
 - STEP MOBILE-2: scanner nativo + cascade ISBN lato client — vedi shared/MOBILE-ROADMAP.md

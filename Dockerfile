@@ -7,7 +7,9 @@
 # ──────────────────────────────────────────────────────────
 
 # ── STAGE 1: Frontend build ────────────────────────────────
-FROM node:20-alpine AS frontend-builder
+# Immagini base fissate per digest (index multi-arch letto dal registry il 2026-10-23).
+# Un digest non riceve patch da solo: aggiornalo periodicamente (vedi DOCKER-UNRAID.md → Aggiornamento immagini base).
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS frontend-builder
 
 WORKDIR /build/frontend
 
@@ -20,7 +22,7 @@ RUN VITE_API_URL=/api npm run build
 
 
 # ── STAGE 2: Runtime ──────────────────────────────────────
-FROM python:3.11-slim
+FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377
 
 LABEL maintainer="BiblioTrack"
 LABEL description="BiblioTrack — Personal book library with ISBN scanner"

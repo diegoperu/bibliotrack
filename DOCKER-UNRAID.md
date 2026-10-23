@@ -258,6 +258,24 @@ docker stop BiblioTrack && docker rm BiblioTrack
 **Modo più semplice:** in Unraid > Docker > BiblioTrack > clicca icona container > **Force Update**
 (funziona solo se l'immagine è su un registry)
 
+### Immagini base e scansione vulnerabilità
+
+Il `Dockerfile` fissa `node:22-alpine` e `python:3.11-slim` per **digest** (build riproducibili, nessun cambio silenzioso). Un digest però non riceve le patch da solo: aggiornalo almeno una volta al mese.
+
+```bash
+# Nuovo digest (index multi-arch) di un tag, es. python:3.11-slim
+docker buildx imagetools inspect python:3.11-slim | grep -m1 Digest
+# Sostituisci il valore dopo @sha256: nel Dockerfile, poi rebuild
+```
+
+Dopo ogni build scansiona l'immagine (pacchetti OS inclusi — nginx, Debian, OpenSSL):
+
+```bash
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --ignore-unfixed bibliotrack:latest
+```
+
+Node 22 è supportato fino al 2027-04-30 (solo stage di build, non finisce nell'immagine finale); Python 3.11 fino al 2027-10-31.
+
 ### Approccio B (registry)
 
 ```bash
