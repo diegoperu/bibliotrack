@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    host: true,   // bind 0.0.0.0 — accessibile da Android/altri dispositivi in LAN
+    // Solo localhost di default: Vite 5 ha CVE sul dev server (fs.deny bypass su Windows).
+    // Per provare da un dispositivo in LAN: npm run dev -- --host
     proxy: {
       '/auth':   { target: 'http://localhost:8000', changeOrigin: true },
       '/books':  { target: 'http://localhost:8000', changeOrigin: true },

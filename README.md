@@ -76,7 +76,7 @@ npm install
 npm run dev
 ```
 
-- App → `http://localhost:5173`
+- App → `http://localhost:5173` (solo localhost; da un altro dispositivo in LAN: `npm run dev -- --host`)
 - API docs → `http://localhost:8000/docs`
 
 **Primo avvio:** crea l'account admin direttamente nel DB (l'endpoint `/auth/register` è rimosso per sicurezza):

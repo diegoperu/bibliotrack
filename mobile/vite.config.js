@@ -5,6 +5,6 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5174,
-    host: true,
+    // Solo localhost di default (CVE dev server Vite 5); LAN: npm run dev -- --host
   },
 })
