@@ -920,7 +920,7 @@ Files: `backend/services/auth_service.py`, `backend/requirements.in`, `backend/r
 
 ## Sessione Corrente
 
-**Ultimo step completato:** STEP 17 — PyJWT (D3) ✅ (93/93 test; commit locale, NON ancora deployato). STEP 14–16 in produzione e verificati (trivy pulito, login, scanner). Aperte: D12, D13
+**Ultimo step completato:** STEP 17 — PyJWT (D3) ✅ (93/93 test) deployato 2026-10-23: `pip list` nel container mostra solo PyJWT 2.15.1, niente jose. STEP 14–16 in produzione e verificati (trivy pulito, login, scanner). Aperte: D12, D13
 **Stato:** Selfhosted completo con backup web funzionante (pagina + endpoint, verificati end-to-end). `mobile/` scaffoldato (STEP MOBILE-1), in pausa — MOBILE-2 in coda.
 **Prossimi step previsti:**
 - STEP MOBILE-2: scanner nativo + cascade ISBN lato client — vedi shared/MOBILE-ROADMAP.md
