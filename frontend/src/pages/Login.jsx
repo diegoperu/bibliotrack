@@ -36,7 +36,16 @@ export default function Login() {
       navigate('/library', { replace: true })
     } catch (err) {
       const detail = err.response?.data?.detail
-      if (Array.isArray(detail)) setError(detail.map((d) => d.msg).join(', '))
+      if (err.response?.status === 429) {
+        // Retry-After in secondi (rate limiting login lato server)
+        const seconds = Number.parseInt(err.response.headers?.['retry-after'], 10)
+        const minutes = Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds / 60) : null
+        setError(
+          minutes
+            ? `Troppi tentativi di accesso falliti. Riprova tra ${minutes} ${minutes === 1 ? 'minuto' : 'minuti'}.`
+            : 'Troppi tentativi di accesso falliti. Riprova tra qualche minuto.'
+        )
+      } else if (Array.isArray(detail)) setError(detail.map((d) => d.msg).join(', '))
       else setError(detail || 'Credenziali non valide')
     } finally {
       setLoading(false)

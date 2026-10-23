@@ -921,6 +921,7 @@ Files: `backend/services/auth_service.py`, `backend/requirements.in`, `backend/r
 - **D13 (B):** tolto il passo `CORS_ORIGINS` da `DOCKER-UNRAID.md` (same-origin, non serve; il formato indicato era comunque errato). Corretta la nota analoga in `DOCKER-CLAUDECODE.md` §8.3
 - Nota: `ADMIN_PASSWORD` nel compose ora è obbligatoria anche dopo il primo avvio (l'entrypoint la usa solo a DB vuoto); chi non vuole tenerla in `.env` può passare un valore qualsiasi dopo la creazione dell'admin
 - Nessun codice applicativo toccato; test non rieseguiti (solo config/doc)
+- Messaggio blocco login (429) in italiano: `frontend/src/pages/Login.jsx` legge `Retry-After` e mostra «Troppi tentativi di accesso falliti. Riprova tra N minuti.» (fallback senza minuti se l'header manca). Backend invariato (detail in inglese, come tutte le API). Build 132 moduli ok; non provato in browser. Richiede rebuild frontend
 
 ---
 
