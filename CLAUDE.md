@@ -79,7 +79,9 @@ bibliotrack/
 │   │   ├── test_isbn.py
 │   │   ├── test_loans.py      ← 18 test prestiti
 │   │   └── test_login_limiter.py ← 16 test rate limiting
-│   ├── requirements.txt
+│   ├── requirements.in        ← dipendenze dirette runtime (sorgente)
+│   ├── requirements.txt       ← lock con hash runtime (uv, py3.11/linux)
+│   ├── requirements-dev.in/.txt ← + pytest (solo sviluppo, NON nell'immagine)
 │   └── .env.example
 ├── frontend/
 │   ├── package.json
@@ -872,6 +874,8 @@ Test: **85/85 pass** (+16: 8 unit limiter con clock finto, 8 integrazione login/
 
 Residui noti: stato perso al riavvio container (il blocco riparte da zero); un attaccante può tenere bloccato un account noto a cicli di 15 min (accettato, D8); se `FORWARDED_ALLOW_IPS` non è impostato dietro NPM, il limite IP diventa globale → D11.
 
+Decisioni D1–D7 (2026-10-23): tutte opzione A, vedi `DOMANDE.md`. Piano esecuzione: (1) D1 lockfile uv + requirements-dev; (2) D2 upgrade backend; (3) D3 PyJWT [Opus]; (4) D4 frontend; (5) D5 Vite host; (6) D6 Capacitor 6.2.2; (7) D7 Docker. Ancora aperte: D12, D13.
+
 Verifica in produzione (2026-10-23): con `FORWARDED_ALLOW_IPS=127.0.0.1,172.17.0.1` il log `login_failed` mostra l'IP pubblico reale del client → catena proxy corretta (prima della variabile mostrava `172.17.0.1`).
 
 Bug frontend trovato durante la verifica (preesistente, non causato dal limiter): in `frontend/src/api/client.js` l'interceptor impostava `isRefreshing = true` e poi usciva con `return` (nessun refresh token) prima del `try/finally` → flag bloccato a true; dopo il primo 401 di login ogni richiesta successiva finiva in `failedQueue` mai risolta → UI ferma su "accesso in corso" fino al reload. Fix: il flag si imposta dopo il controllo del refresh token; 401 su `/auth/login` non passa dal refresh. Build 129 moduli ok. Non verificato in browser reale.
@@ -879,6 +883,16 @@ Bug frontend trovato durante la verifica (preesistente, non causato dal limiter)
 Deploy (D11, 2026-10-23): NPM arriva dal gateway docker0 `172.17.0.1` → sul container `FORWARDED_ALLOW_IPS=127.0.0.1,172.17.0.1`. Pre-deploy: suite eseguita anche con le ultime versioni PyPI (quelle che il rebuild installerà con `>=`: fastapi 0.161.1, starlette 1.9.0, SQLAlchemy 2.1.6, uvicorn 0.54.0, certifi 2026.10.19) → 85/85 pass (Python 3.14 locale; container usa 3.11).
 
 Files: `backend/services/login_limiter.py` (nuovo), `backend/routers/auth.py`, `backend/routers/users.py`, `backend/services/auth_service.py`, `backend/schemas/user.py`, `backend/tests/conftest.py` (fixture reset limiter), `backend/tests/test_login_limiter.py` (nuovo), `docker/unraid-template.xml`, `docker-compose.yml`, `DOCKER-UNRAID.md`
+
+### ✅ STEP 15 — D1+D2: lockfile Python con hash + upgrade backend
+**Obiettivo:** build riproducibili e dipendenze backend aggiornate (CVE check 2026-10-23, D1/D2).
+
+- `backend/requirements.in` (dirette) → `requirements.txt` lock con hash, 39 pacchetti, compilato con `uv 0.13.5` per Python 3.11 / Linux (= container). `requirements-dev.in/.txt` aggiunge pytest/pytest-asyncio; il Dockerfile installa solo il runtime → `pytest` esce dall'immagine di produzione
+- `Dockerfile`: `pip install --require-hashes`
+- Versioni: fastapi 0.161.1, starlette 1.9.0, SQLAlchemy 2.1.6 (salto 2.0→2.1), uvicorn 0.54.0, python-multipart 0.0.32, certifi 2026.10.19, cryptography 50.0.2, anyio 4.15.1, pydantic 2.14.1, pydantic-settings 2.16.1; nuova transitiva `opentelemetry-api` (dipendenza fastapi)
+- Test: **85/85 pass** su Python 3.11 con le versioni del lock (escluso `uvloop`, solo Linux, non installabile su Windows)
+- Rigenerare il lock: comando in testa a `requirements.in`. `deploy/setup.sh` usa lo stesso file (pip entra in hash-checking mode da solo); il lock è per cp311/Linux → su Python diverso può fallire
+- python-jose/ecdsa restano (CVE non sfruttabili, vedi D3 → PyJWT, step separato con Opus)
 
 ---
 

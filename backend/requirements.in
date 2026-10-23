@@ -1,0 +1,14 @@
+# Dipendenze dirette di runtime. Il lock con hash è requirements.txt (generato, non modificare a mano).
+# Rigenera:  uv pip compile requirements.in -o requirements.txt --generate-hashes --python-version 3.11 --python-platform linux
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+sqlalchemy>=2.0.36
+pydantic[email]>=2.9.0
+pydantic-settings>=2.6.0
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.2.0
+python-multipart>=0.0.12
+httpx>=0.27.0
+isbnlib==3.10.14
+isbnlib-sbn==0.0.1
+aiofiles>=24.1.0

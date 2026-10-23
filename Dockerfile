@@ -37,7 +37,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app/backend
 
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# requirements.txt è un lock con hash (uv pip compile): pip rifiuta qualsiasi pacchetto non verificato
+RUN pip install --no-cache-dir --require-hashes -r requirements.txt
 
 # ── Backend source ─────────────────────────────────────────
 COPY backend/ .

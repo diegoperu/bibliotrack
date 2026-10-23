@@ -65,7 +65,7 @@ cd bibliotrack
 cd backend
 python3 -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime + pytest (lock con hash, Python 3.11 / Linux)
 cp .env.example .env
 # Edita .env: imposta SECRET_KEY con `openssl rand -hex 32`
 uvicorn main:app --reload --port 8000
@@ -300,7 +300,7 @@ git pull
 
 # Backend
 source /opt/bibliotrack/venv/bin/activate
-pip install -r backend/requirements.txt
+pip install -r backend/requirements.txt   # lock con hash: pip ne verifica l'integrità
 
 # Frontend
 cd frontend && npm ci && npm run build

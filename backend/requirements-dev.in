@@ -1,0 +1,6 @@
+# Runtime + strumenti di test. Lock: requirements-dev.txt
+# Rigenera:  uv pip compile requirements-dev.in -o requirements-dev.txt --generate-hashes --python-version 3.11 --python-platform linux
+-c requirements.txt
+-r requirements.in
+pytest>=8.3.0
+pytest-asyncio>=0.24.0

@@ -158,7 +158,7 @@ docker build --progress=plain -t bibliotrack:latest . 2>&1 | grep -A5 "npm run b
 
 ### Backend non parte (errore import)
 **Causa:** dipendenza Python mancante o incompatibile.
-**Fix:** verificare `requirements.txt` includa tutte le dipendenze aggiunte durante lo sviluppo:
+**Fix:** le dipendenze dirette stanno in `backend/requirements.in`; dopo averne aggiunta una rigenera il lock con hash (`uv pip compile requirements.in -o requirements.txt --generate-hashes --python-version 3.11 --python-platform linux`) e verifica:
 ```bash
 docker exec bt-test pip list | grep -E "fastapi|sqlalchemy|uvicorn"
 ```
