@@ -872,6 +872,10 @@ Test: **85/85 pass** (+16: 8 unit limiter con clock finto, 8 integrazione login/
 
 Residui noti: stato perso al riavvio container (il blocco riparte da zero); un attaccante può tenere bloccato un account noto a cicli di 15 min (accettato, D8); se `FORWARDED_ALLOW_IPS` non è impostato dietro NPM, il limite IP diventa globale → D11.
 
+Verifica in produzione (2026-10-23): con `FORWARDED_ALLOW_IPS=127.0.0.1,172.17.0.1` il log `login_failed` mostra l'IP pubblico reale del client → catena proxy corretta (prima della variabile mostrava `172.17.0.1`).
+
+Bug frontend trovato durante la verifica (preesistente, non causato dal limiter): in `frontend/src/api/client.js` l'interceptor impostava `isRefreshing = true` e poi usciva con `return` (nessun refresh token) prima del `try/finally` → flag bloccato a true; dopo il primo 401 di login ogni richiesta successiva finiva in `failedQueue` mai risolta → UI ferma su "accesso in corso" fino al reload. Fix: il flag si imposta dopo il controllo del refresh token; 401 su `/auth/login` non passa dal refresh. Build 129 moduli ok. Non verificato in browser reale.
+
 Deploy (D11, 2026-10-23): NPM arriva dal gateway docker0 `172.17.0.1` → sul container `FORWARDED_ALLOW_IPS=127.0.0.1,172.17.0.1`. Pre-deploy: suite eseguita anche con le ultime versioni PyPI (quelle che il rebuild installerà con `>=`: fastapi 0.161.1, starlette 1.9.0, SQLAlchemy 2.1.6, uvicorn 0.54.0, certifi 2026.10.19) → 85/85 pass (Python 3.14 locale; container usa 3.11).
 
 Files: `backend/services/login_limiter.py` (nuovo), `backend/routers/auth.py`, `backend/routers/users.py`, `backend/services/auth_service.py`, `backend/schemas/user.py`, `backend/tests/conftest.py` (fixture reset limiter), `backend/tests/test_login_limiter.py` (nuovo), `docker/unraid-template.xml`, `docker-compose.yml`, `DOCKER-UNRAID.md`

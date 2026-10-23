@@ -24,6 +24,8 @@ client.interceptors.response.use(
   async (err) => {
     const orig = err.config
     if (err.response?.status !== 401 || orig._retry) return Promise.reject(err)
+    // Un 401 su /auth/login significa credenziali errate, non token scaduto
+    if (orig.url?.endsWith('/auth/login')) return Promise.reject(err)
 
     if (isRefreshing) {
       return new Promise((resolve, reject) => failedQueue.push({ resolve, reject }))
@@ -35,10 +37,12 @@ client.interceptors.response.use(
     }
 
     orig._retry = true
-    isRefreshing = true
 
     const { refreshToken, logout, updateAccessToken } = useAuthStore.getState()
+    // Prima del flag: con isRefreshing già true questo return lo lasciava bloccato
+    // e ogni 401 successivo restava in coda per sempre
     if (!refreshToken) { logout(); return Promise.reject(err) }
+    isRefreshing = true
 
     try {
       // Token sent in request body (not URL params) to avoid leaking in server logs
