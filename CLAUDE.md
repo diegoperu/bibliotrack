@@ -25,7 +25,7 @@
 | Backend | Python 3.11+ / FastAPI |
 | ORM | SQLAlchemy 2.x |
 | Database | SQLite (WAL mode) |
-| Auth | JWT (python-jose) + bcrypt (diretto, passlib rimosso) |
+| Auth | JWT (PyJWT, HS256 — python-jose rimosso in STEP 17) + bcrypt (diretto, passlib rimosso) |
 | Frontend | React 18 + Vite + TailwindCSS 3 |
 | Camera/ISBN | BarcodeDetector API + QuaggaJS (fallback iOS) |
 | Metadata ISBN | OPAC SBN via isbnlib-sbn (primario IT) + Open Library API + Google Books API + IBS.it Algolia (fallback IT) |
@@ -78,7 +78,8 @@ bibliotrack/
 │   │   ├── test_books.py
 │   │   ├── test_isbn.py
 │   │   ├── test_loans.py      ← 18 test prestiti
-│   │   └── test_login_limiter.py ← 16 test rate limiting
+│   │   ├── test_login_limiter.py ← 16 test rate limiting
+│   │   └── test_tokens.py     ← 8 test regressione JWT
 │   ├── requirements.in        ← dipendenze dirette runtime (sorgente)
 │   ├── requirements.txt       ← lock con hash runtime (uv, py3.11/linux)
 │   ├── requirements-dev.in/.txt ← + pytest (solo sviluppo, NON nell'immagine)
@@ -904,11 +905,22 @@ Files: `backend/services/login_limiter.py` (nuovo), `backend/routers/auth.py`, `
 - **Scan trivy 0.76 sull'immagine ricostruita (2026-10-23, `--severity HIGH,CRITICAL --ignore-unfixed`):** Debian 13.7 (137 pacchetti OS): **0 vulnerabilità**; pacchetti Python dell'app (lock hash, fastapi 0.161.1 / starlette 1.9.0 / certifi 2026.10.19 …): **0**. Unici 2 riscontri: `jaraco.context 5.3.0` e `wheel 0.45.1`, entrambi *vendorizzati dentro setuptools 79.0.1* (preinstallato nell'immagine base `python:3.11-slim`, non nel lock dell'app). CVE-2026-23949 (jaraco.context, path traversal da tar malevoli, fix 6.1.0) e CVE-2026-24049 (wheel, esecuzione da file wheel malevoli, fix 0.46.2): l'app non estrae tar né installa wheel → non raggiungibili, **accettate**. **NON rimuovere setuptools** dall'immagine: `isbnlib.meta()` importa `pkg_resources` a runtime (`isbnlib/_metadata.py` → `registry.py`); senza, il lookup SBN (fonte primaria ISBN italiani) fallisce con `ModuleNotFoundError`. Verificato in un venv senza setuptools. I test non lo rilevano (isbnlib mockato). **Rischio futuro:** setuptools ≥ 81 non include più `pkg_resources` → aggiornando il digest di `python:3.11-slim`, dopo il rebuild fare una ricerca ISBN italiana reale
 - Non verificato: scanner ISBN con quagga2 1.13.0 in browser reale (nessuna browser automation); controllare dopo il deploy
 
+### ✅ STEP 17 — D3: python-jose → PyJWT
+**Obiettivo:** togliere una libreria di autenticazione con CVE aperte senza fix (python-jose CVE-2024-33663/CVE-2026-85394, ecdsa CVE-2024-23342) anche se non sfruttabili con HS256.
+
+- `services/auth_service.py`: `import jwt` (PyJWT 2.15.1); `decode_token` con `algorithms` pinnato + `options={"require": ["exp","sub","type"]}` (irrobustimento: un token senza scadenza/soggetto/tipo è rifiutato; tutti i token emessi li hanno sempre); eccezione `jwt.InvalidTokenError`. Nessun altro file usava jose
+- **Compatibilità verificata prima della modifica** (venv con entrambe le librerie): token access/refresh emessi da python-jose decodificati da PyJWT e viceversa → le sessioni attive in produzione restano valide al deploy, nessun logout forzato
+- Lock: -8 pacchetti (`python-jose`, `ecdsa`, `rsa`, `pyasn1`, `cryptography`, `cffi`, `pycparser`, `six`, inclusi quelli con codice nativo), +1 (`pyjwt`); nessun'altra versione cambiata. 33 pacchetti totali
+- Test: `tests/test_tokens.py` (+8: alg none, chiave errata, HS512 non ammesso, scaduto, claim mancanti, refresh usato come access, malformati, roundtrip). **93/93 pass** su Python 3.11 da lock pulito (senza jose installato)
+- PyJWT avvisa (`InsecureKeyLengthWarning`) se la chiave HMAC è sotto 32 byte per HS256: il validator `SECRET_KEY` impone già ≥ 32 caratteri
+
+Files: `backend/services/auth_service.py`, `backend/requirements.in`, `backend/requirements.txt`, `backend/requirements-dev.txt`, `backend/tests/test_tokens.py` (nuovo), `README.md`
+
 ---
 
 ## Sessione Corrente
 
-**Ultimo step completato:** STEP 16 — upgrade dipendenze/Docker da check CVE ✅ (commit locali, NON ancora pushati né deployati). Prossimo: D3 PyJWT con Opus; poi D12/D13. STEP 14 (rate limit login) già in produzione
+**Ultimo step completato:** STEP 17 — PyJWT (D3) ✅ (93/93 test; commit locale, NON ancora deployato). STEP 14–16 in produzione e verificati (trivy pulito, login, scanner). Aperte: D12, D13
 **Stato:** Selfhosted completo con backup web funzionante (pagina + endpoint, verificati end-to-end). `mobile/` scaffoldato (STEP MOBILE-1), in pausa — MOBILE-2 in coda.
 **Prossimi step previsti:**
 - STEP MOBILE-2: scanner nativo + cascade ISBN lato client — vedi shared/MOBILE-ROADMAP.md

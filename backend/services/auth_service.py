@@ -1,5 +1,5 @@
 import bcrypt as _bcrypt
-from jose import JWTError, jwt
+import jwt
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from config import settings
@@ -42,6 +42,13 @@ def create_refresh_token(data: dict) -> str:
 
 def decode_token(token: str) -> Optional[dict]:
     try:
-        return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    except JWTError:
+        # algorithms pinnato: impedisce alg confusion / "none". require: un token
+        # senza scadenza, soggetto o tipo non è uno emesso da noi
+        return jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"require": ["exp", "sub", "type"]},
+        )
+    except jwt.InvalidTokenError:
         return None

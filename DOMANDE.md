@@ -28,7 +28,7 @@
 **Perché conta**: oggi NON sfruttabile (HS256 simmetrico, `algorithms=[ALGORITHM]` pinnato, nessuna chiave pubblica). Ma è una libreria auth con CVE aperte senza fix: ogni futuro audit la segnalerà, e un cambio a RS256/ES256 la renderebbe sfruttabile.
 **Opzioni**: A) migrare a PyJWT (tocca solo `services/auth_service.py` + `requirements`; stessi token HS256, sessioni esistenti restano valide) B) tenere e documentare come accettato
 **Suggerimento**: A — modifica piccola, elimina 4 pacchetti dalla superficie, PyJWT è lo standard mantenuto.
-**Risposta utente**: (2026-10-23) A — migrazione python-jose → PyJWT (token HS256 esistenti restano validi).
+**Risposta utente**: (2026-10-23) A — migrazione python-jose → PyJWT (token HS256 esistenti restano validi). Fatto in STEP 17, compatibilità token verificata.
 
 ### D4 — Upgrade frontend web (non-breaking)
 **Stato**: RISPOSTA
